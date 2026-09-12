@@ -1,4 +1,4 @@
-name: Flagship browser smoke
+name: Marketing browser smoke
 
 on:
   push:
@@ -7,6 +7,10 @@ on:
       - 'pv-sites/pdf-workbench/**'
       - 'pv-sites/pixel-lite/**'
       - 'pv-sites/audio-master-lite/**'
+      - 'pv-sites/voice-meter/**'
+      - 'pv-sites/walk-air/**'
+      - 'pv-sites/nature-pulse/**'
+      - 'pv-sites/food-lens/**'
       - 'tests/marketing-smoke.mjs'
       - '.github/workflows/flagship-browser-smoke.yml'
   pull_request:
@@ -14,6 +18,10 @@ on:
       - 'pv-sites/pdf-workbench/**'
       - 'pv-sites/pixel-lite/**'
       - 'pv-sites/audio-master-lite/**'
+      - 'pv-sites/voice-meter/**'
+      - 'pv-sites/walk-air/**'
+      - 'pv-sites/nature-pulse/**'
+      - 'pv-sites/food-lens/**'
       - 'tests/marketing-smoke.mjs'
       - '.github/workflows/flagship-browser-smoke.yml'
   workflow_dispatch:
