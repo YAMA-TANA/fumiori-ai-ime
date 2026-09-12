@@ -1,5 +1,6 @@
 (()=>{'use strict';
 const $=s=>document.querySelector(s);let running=false;
+if(window.pdfjsLib&&!window.__pdfWorkbenchSafeDataClone){const originalGetDocument=window.pdfjsLib.getDocument.bind(window.pdfjsLib);window.pdfjsLib.getDocument=function(source){if(source&&typeof source==='object'&&source.data instanceof Uint8Array)source={...source,data:source.data.slice()};return originalGetDocument(source)};window.__pdfWorkbenchSafeDataClone=true}
 const labels={ja:{title:'ページ抽出',hint:'例: 1-3,5,8',current:'現在ページ',range:'指定ページを書き出す',invalid:'ページ指定を確認してください',working:'編集内容を反映して抽出中…',failed:'ページ抽出に失敗しました'},en:{title:'Extract pages',hint:'e.g. 1-3,5,8',current:'Current page',range:'Export selected pages',invalid:'Check the page range',working:'Applying edits and extracting…',failed:'Could not extract pages'},zh:{title:'提取页面',hint:'例如 1-3,5,8',current:'当前页',range:'导出指定页面',invalid:'请检查页面范围',working:'正在应用编辑并提取…',failed:'页面提取失败'},ko:{title:'페이지 추출',hint:'예: 1-3,5,8',current:'현재 페이지',range:'지정 페이지 내보내기',invalid:'페이지 범위를 확인하세요',working:'편집 내용을 적용해 추출 중…',failed:'페이지 추출 실패'}};
 const lang=()=>$('#languageSelect')?.value||'ja',t=k=>(labels[lang()]||labels.en)[k]||k;
 function totalPages(){const m=$('#pageTotal')?.textContent.match(/\d+/);return m?Number(m[0]):0}
