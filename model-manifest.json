@@ -28,7 +28,7 @@
       "sha256": "A0485C5B570E6578F5F2912AD8441172802B95CE3D99F4A279BDF41B3189EEF1"
     },
     {
-      "path": "models/ruri-v3-70m-ime-distilled/tokenizer.json",
+      "path": "build/onnx-model-70m/tokenizer.json",
       "bytes": 6725126,
       "sha256": "DE5307DD1171C748294224C016189C0FA364168AD4560736EC2BA5EC5A032657"
     },
