@@ -12,8 +12,11 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+from collections import OrderedDict
+from copy import deepcopy
 import json
 import logging
+import math
 import os
 import sys
 import time
@@ -27,12 +30,26 @@ except ImportError:
     from lexicon import contextual_candidate_bonus
 
 try:  # When run as ``python -m ranker.ranker``.
-    from .protocol import (MAX_LINE_BYTES, ProtocolError, loads_strict,
-                           validate_request, validate_response)
+    from .protocol import (
+        MAX_LINE_BYTES,
+        ProtocolError,
+        loads_strict,
+        validate_batch_request,
+        validate_batch_response,
+        validate_request,
+        validate_response,
+    )
     from .loading_ui import LoadingIndicator
 except ImportError:  # When run as ``python ranker/ranker.py``.
-    from protocol import (MAX_LINE_BYTES, ProtocolError, loads_strict,
-                          validate_request, validate_response)
+    from protocol import (
+        MAX_LINE_BYTES,
+        ProtocolError,
+        loads_strict,
+        validate_batch_request,
+        validate_batch_response,
+        validate_request,
+        validate_response,
+    )
     from loading_ui import LoadingIndicator
 
 QwenReranker = None
@@ -133,6 +150,7 @@ class RuntimeStatus:
             "last_context_chars": None,
             "last_read_chars": None,
             "last_candidate_count": None,
+            "last_segment_count": None,
             "last_request_at": None,
             "last_latency_ms": None,
         }
@@ -275,11 +293,127 @@ class InteractiveBurstGuard:
         return response
 
 
+def _compact_batch_fallback(
+    request: Dict[str, Any], ranker: Any
+) -> Dict[str, Any]:
+    """Adapt a legacy backend to the compact batch response."""
+    results = []
+    for segment in request["segments"]:
+        single_request = {
+            "request_id": f"{request['request_id']}-{segment['id']}",
+            "inference_trigger": request["inference_trigger"],
+            "preceding_text": segment["preceding_text"],
+            "following_text": segment["following_text"],
+            "read": segment["read"],
+            "candidates": segment["candidates"],
+        }
+        response = validate_response(ranker.rank(single_request), single_request)
+        ranked = response["candidates"]
+        winner = ranked[0]
+        values = [float(item["score"]) for item in ranked]
+        maximum = max(values)
+        denominator = sum(math.exp(value - maximum) for value in values)
+        confidence = math.exp(float(winner["score"]) - maximum) / denominator
+        results.append({
+            "id": segment["id"],
+            "winner_id": winner["id"],
+            "confidence": confidence,
+        })
+    return {"request_id": request["request_id"], "segments": results}
+
+
+class ResponseCache:
+    """Short-lived cache for repeated explicit conversion requests."""
+
+    def __init__(
+        self,
+        delegate: Any,
+        *,
+        max_entries: int = 256,
+        ttl_seconds: float = 3.0,
+    ) -> None:
+        self._delegate = delegate
+        self.max_entries = max(1, int(max_entries))
+        self.ttl_seconds = max(0.0, float(ttl_seconds))
+        self._entries: OrderedDict[str, tuple[float, Dict[str, Any]]] = OrderedDict()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._delegate, name)
+
+    @staticmethod
+    def _key(request: Dict[str, Any]) -> str:
+        value = dict(request)
+        value.pop("request_id", None)
+        return json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+
+    def _get_or_compute(self, request: Dict[str, Any], compute: Any) -> Dict[str, Any]:
+        key = self._key(request)
+        now = time.perf_counter()
+        entry = self._entries.get(key)
+        if entry is not None:
+            stored_at, response = entry
+            if now - stored_at <= self.ttl_seconds:
+                self._entries.move_to_end(key)
+                cached = deepcopy(response)
+                cached["request_id"] = request["request_id"]
+                return cached
+            self._entries.pop(key, None)
+
+        response = compute(request)
+        if response is not None:
+            self._entries[key] = (time.perf_counter(), deepcopy(response))
+            self._entries.move_to_end(key)
+            while len(self._entries) > self.max_entries:
+                self._entries.popitem(last=False)
+        return response
+
+    def rank(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        normalized = validate_request(request)
+        return self._get_or_compute(normalized, self._delegate.rank)
+
+    def rank_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        normalized = validate_batch_request(request)
+        if hasattr(self._delegate, "rank_batch"):
+            compute = self._delegate.rank_batch
+        else:
+            compute = lambda value: _compact_batch_fallback(value, self._delegate)
+        return self._get_or_compute(normalized, compute)
+
+
+def summarize_batch_reorder(
+    request: Dict[str, Any], response: Dict[str, Any]
+) -> tuple[int, int]:
+    """Return changed-segment and non-baseline-winner counts."""
+    winners = {item["id"]: item["winner_id"] for item in response["segments"]}
+    changed = 0
+    promoted = 0
+    for segment in request["segments"]:
+        winner_id = winners[segment["id"]]
+        original_top = segment["candidates"][0]["id"]
+        if winner_id != original_top:
+            changed += 1
+            promoted += 1
+    return changed, promoted
+
+
 def process_line(line: bytes, ranker: Any) -> Optional[bytes]:
     try:
         if len(line) > MAX_LINE_BYTES:
             raise ProtocolError("JSON line is too large")
         request = loads_strict(line.decode("utf-8"))
+        if isinstance(request, dict) and "segments" in request:
+            req_val = validate_batch_request(request)
+            if hasattr(ranker, "rank_batch"):
+                response = ranker.rank_batch(req_val)
+            else:
+                response = _compact_batch_fallback(req_val, ranker)
+            clean_response = validate_batch_response(response, req_val)
+            return (
+                json.dumps(clean_response, ensure_ascii=False, separators=(",", ":"))
+                + "\n"
+            ).encode("utf-8")
         req_val = validate_request(request)
         if (not req_val["preceding_text"] and
                 not req_val["following_text"] and
@@ -443,27 +577,63 @@ def _windows_pipe_server(pipe_name: str, ranker: Any, show_ui: bool = True,
                             )
                             if is_ime:
                                 response = loads_strict(output.decode("utf-8"))
-                                changed, promoted_from = summarize_reorder(observed, response)
-                                updates.update(
-                                    ime_reordered_requests=(
-                                        int(runtime_status.data["ime_reordered_requests"])
-                                        + (1 if changed else 0)
-                                    ),
-                                    ime_top_changed_requests=(
-                                        int(runtime_status.data["ime_top_changed_requests"])
-                                        + (1 if promoted_from > 1 else 0)
-                                    ),
-                                    last_ime_order_changed=changed,
-                                    last_promoted_from_rank=promoted_from,
-                                    last_context_chars=len(str(observed.get("preceding_text", ""))),
-                                    last_read_chars=len(str(observed.get("read", ""))),
-                                    last_candidate_count=len(observed.get("candidates", [])),
-                                )
-                                LOG.info(
-                                    "IME reorder changed=%s top_from=%s context_chars=%s read_chars=%s",
-                                    changed, promoted_from,
-                                    updates["last_context_chars"], updates["last_read_chars"],
-                                )
+                                if isinstance(observed.get("segments"), list):
+                                    changed_count, promoted_count = summarize_batch_reorder(
+                                        observed, response
+                                    )
+                                    updates.update(
+                                        ime_reordered_requests=(
+                                            int(runtime_status.data["ime_reordered_requests"])
+                                            + (1 if changed_count else 0)
+                                        ),
+                                        ime_top_changed_requests=(
+                                            int(runtime_status.data["ime_top_changed_requests"])
+                                            + promoted_count
+                                        ),
+                                        last_ime_order_changed=bool(changed_count),
+                                        last_promoted_from_rank=None,
+                                        last_context_chars=sum(
+                                            len(str(item.get("preceding_text", "")))
+                                            for item in observed["segments"]
+                                        ),
+                                        last_read_chars=sum(
+                                            len(str(item.get("read", "")))
+                                            for item in observed["segments"]
+                                        ),
+                                        last_candidate_count=sum(
+                                            len(item.get("candidates", []))
+                                            for item in observed["segments"]
+                                        ),
+                                        last_segment_count=len(observed["segments"]),
+                                    )
+                                    LOG.info(
+                                        "IME batch reorder changed_segments=%s promoted_segments=%s segments=%s",
+                                        changed_count, promoted_count,
+                                        len(observed["segments"]),
+                                    )
+                                else:
+                                    changed, promoted_from = summarize_reorder(observed, response)
+                                    updates.update(
+                                        ime_reordered_requests=(
+                                            int(runtime_status.data["ime_reordered_requests"])
+                                            + (1 if changed else 0)
+                                        ),
+                                        ime_top_changed_requests=(
+                                            int(runtime_status.data["ime_top_changed_requests"])
+                                            + (1 if promoted_from > 1 else 0)
+                                        ),
+                                        last_ime_order_changed=changed,
+                                        last_promoted_from_rank=promoted_from,
+                                        last_context_chars=len(str(observed.get("preceding_text", ""))),
+                                        last_read_chars=len(str(observed.get("read", ""))),
+                                        last_candidate_count=len(observed.get("candidates", [])),
+                                        last_segment_count=1,
+                                    )
+                                    LOG.info(
+                                        "IME reorder changed=%s top_from=%s context_chars=%s read_chars=%s",
+                                        changed, promoted_from,
+                                        updates["last_context_chars"], updates["last_read_chars"],
+                                    )
                             runtime_status.write(**updates)
             finally:
                 k32.DisconnectNamedPipe(handle)
@@ -488,6 +658,17 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     parser.add_argument(
         "--model-name", default="cl-nagoya/ruri-v3-reranker-310m",
         help="Hugging Face model ID/path for --backend ruri or qwen",
+    )
+    parser.add_argument(
+        "--ensemble-model", action="append", default=None,
+        help=(
+            "ONNX model path; repeat for a weighted ensemble "
+            "(two paths use the calibrated LoRA3/LoRA6 25/75 default)"
+        ),
+    )
+    parser.add_argument(
+        "--query-variant", choices=("current", "short", "none"), default="current",
+        help="ONNX query template used for ranking (default: current)",
     )
     parser.add_argument(
         "--device", default=None,
@@ -556,6 +737,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             product_settings = load_settings(args.settings_file)
             ranker = OnnxRuriReranker(
                 settings=product_settings,
+                model_paths=args.ensemble_model,
+                query_variant=args.query_variant,
             )
             LOG.info(
                 "ONNX Ruri model loaded in %.1f ms (device=%s)",
@@ -596,7 +779,13 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             # return Mozc order immediately until the same request is stable
             # for 500 ms, so typing never starts model inference.
             ranker = InteractiveBurstGuard(ranker, settle_seconds=0.5)
-        model = getattr(ranker, "model_path", args.model_name if args.backend != "rule" else "rule")
+        ranker = ResponseCache(ranker)
+        model_paths = getattr(ranker, "model_paths", None)
+        model = (
+            ",".join(str(path) for path in model_paths)
+            if model_paths
+            else getattr(ranker, "model_path", args.model_name if args.backend != "rule" else "rule")
+        )
         status = RuntimeStatus(
             args.status_file, args.backend, str(model), normalize_windows_pipe_name(args.pipe)
         )

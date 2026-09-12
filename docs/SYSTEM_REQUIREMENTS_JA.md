@@ -17,7 +17,8 @@
 
 - 4コア以上の比較的新しいx64 CPU
 - メモリ: 16 GB以上
-- GPUモードを使う場合: DirectX 12対応GPU、専用または共有メモリ4 GB以上
+- GPUモードを使う場合: CUDA対応NVIDIA GPU（推奨）またはDirectX 12対応GPU、専用または共有メモリ4 GB以上
+- CUDA実行時はCUDA 12系・cuDNN 9系ランタイムを使用（配布版に同梱）。
 
 ## 動作上の注意
 

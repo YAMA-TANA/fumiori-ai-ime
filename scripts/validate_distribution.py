@@ -100,7 +100,8 @@ def validate(msi_path: Path, admin_root: Path) -> None:
     }
     required = (
         "mozc_tip32.dll", "mozc_tip64.dll", "mozc_server.exe",
-        "YamatanaAIIME.exe", "ruri-ime-fp16.onnx", "ruri-ime-int8.onnx",
+        "YamatanaAIIME.exe", "ruri-ime-lora3-fp16.onnx", "ruri-ime-lora3-int8.onnx",
+        "ruri-ime-lora6-fp16.onnx", "ruri-ime-lora6-int8.onnx",
         "PRIVACY.md", "LICENSE", "NOTICE", "THIRD_PARTY_LICENSES.md",
         "tokenizer.json",
     )

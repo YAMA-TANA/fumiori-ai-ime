@@ -8,6 +8,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdint>
+#include <map>
 #include <regex>
 #include <set>
 #include <sstream>
@@ -20,6 +21,8 @@ namespace {
 constexpr size_t kMaxResponseBytes = 262144;
 constexpr size_t kMaxRequestBytes = 2097152;
 constexpr size_t kMaxCandidates = 512;
+constexpr size_t kMaxSegments = 6;
+constexpr size_t kMaxCandidatesPerSegment = 5;
 
 bool EscapeJson(const std::string& value, std::string* out) {
   if (out == nullptr) return false;
@@ -160,6 +163,22 @@ bool ReadDeadline(HANDLE pipe, std::string* output, ULONGLONG deadline) {
   return false;
 }
 
+bool ExchangePayload(const std::wstring& pipe_name, const std::string& payload,
+                     int timeout_ms, std::string* response) {
+  if (response == nullptr || timeout_ms <= 0 ||
+      timeout_ms > static_cast<int>(INFINITE - 1)) {
+    return false;
+  }
+  const ULONGLONG deadline =
+      GetTickCount64() + static_cast<ULONGLONG>(timeout_ms);
+  HANDLE pipe = OpenPipeUntil(pipe_name, deadline);
+  if (pipe == INVALID_HANDLE_VALUE) return false;
+  bool ok = WriteDeadline(pipe, payload, deadline);
+  if (ok) ok = ReadDeadline(pipe, response, deadline);
+  CloseHandle(pipe);
+  return ok;
+}
+
 bool ParseResponse(const std::string& response, const std::string& request_id,
                    const std::set<std::string>& allowed,
                    std::vector<RankedCandidate>* output) {
@@ -215,6 +234,63 @@ bool ParseResponse(const std::string& response, const std::string& request_id,
   return true;
 }
 
+bool ParseBatchResponse(
+    const std::string& response, const std::string& request_id,
+    const std::map<std::string, std::set<std::string>>& allowed,
+    std::vector<BatchSegmentResult>* output) {
+  if (output == nullptr || response.empty() || response.back() != '\n') {
+    return false;
+  }
+  const std::string body = response.substr(0, response.size() - 1);
+  const std::string prefix =
+      "{\"request_id\":\"" + request_id + "\",\"segments\":[";
+  if (body.size() < prefix.size() + 2 ||
+      body.compare(0, prefix.size(), prefix) != 0 ||
+      body.substr(body.size() - 2) != "]}") {
+    return false;
+  }
+  const std::string list =
+      body.substr(prefix.size(), body.size() - prefix.size() - 2);
+  static const std::regex item(
+      "\\{\\\"id\\\":\\\"([A-Za-z0-9_.:-]+)\\\","
+      "\\\"winner_id\\\":\\\"([A-Za-z0-9_.:-]+)\\\","
+      "\\\"confidence\\\":((?:0|1)(?:\\.[0-9]+)?)\\}");
+  std::set<std::string> seen;
+  std::vector<BatchSegmentResult> parsed;
+  size_t cursor = 0;
+  while (cursor < list.size()) {
+    std::smatch match;
+    const std::string tail = list.substr(cursor);
+    if (!std::regex_search(tail, match, item,
+                           std::regex_constants::match_continuous)) {
+      return false;
+    }
+    const std::string segment_id = match[1].str();
+    const std::string winner_id = match[2].str();
+    double confidence = 0.0;
+    try {
+      confidence = std::stod(match[3].str());
+    } catch (...) {
+      return false;
+    }
+    const auto allowed_it = allowed.find(segment_id);
+    if (allowed_it == allowed.end() || !seen.insert(segment_id).second ||
+        !allowed_it->second.count(winner_id) || !std::isfinite(confidence) ||
+        confidence < 0.0 || confidence > 1.0) {
+      return false;
+    }
+    parsed.push_back({segment_id, winner_id, confidence});
+    cursor += static_cast<size_t>(match.length());
+    if (cursor < list.size()) {
+      if (list[cursor] != ',') return false;
+      ++cursor;
+    }
+  }
+  if (parsed.size() != allowed.size()) return false;
+  *output = std::move(parsed);
+  return true;
+}
+
 std::string NextRequestId() {
   static std::atomic<uint64_t> sequence{0};
   std::ostringstream id;
@@ -252,10 +328,8 @@ bool Client::Rank(const std::string& preceding_text,
       following_text.size() > 32768 || reading.size() > 512) {
     return false;
   }
-  // Keep a defensive upper bound for callers, but do not silently truncate
-  // AiRewriter's explicit-conversion budget.  The packaged CPU model commonly
-  // needs more than 500 ms, and truncating it here discarded a valid AI result
-  // after the server had already started inference.
+  // Keep a defensive upper bound for callers while honoring the conversion
+  // deadline supplied by AiRewriter.
   constexpr int kMaxTimeoutMs = 3000;
   const int budget_ms = std::min(timeout_ms, kMaxTimeoutMs);
   const std::string request_id = NextRequestId();
@@ -293,16 +367,73 @@ bool Client::Rank(const std::string& preceding_text,
   const std::string payload = json.str();
   if (payload.size() > kMaxRequestBytes) return false;
 
-  const ULONGLONG deadline =
-      GetTickCount64() + static_cast<ULONGLONG>(budget_ms);
-  HANDLE pipe = OpenPipeUntil(pipe_name_, deadline);
-  if (pipe == INVALID_HANDLE_VALUE) return false;
   std::string response;
-  bool ok = WriteDeadline(pipe, payload, deadline);
-  if (ok) ok = ReadDeadline(pipe, &response, deadline);
-  if (ok) ok = ParseResponse(response, request_id, allowed, ranked);
-  CloseHandle(pipe);
-  return ok;
+  if (!ExchangePayload(pipe_name_, payload, budget_ms, &response)) return false;
+  return ParseResponse(response, request_id, allowed, ranked);
+}
+
+bool Client::RankBatch(const std::vector<BatchSegmentInput>& segments,
+                       int timeout_ms,
+                       std::vector<BatchSegmentResult>* results) const {
+  if (results == nullptr || segments.empty() || segments.size() > kMaxSegments ||
+      timeout_ms <= 0) {
+    return false;
+  }
+
+  const int budget_ms = std::min(timeout_ms, 3000);
+  const std::string request_id = NextRequestId();
+  std::ostringstream json;
+  json << "{\"request_id\":\"" << request_id
+       << "\",\"inference_trigger\":\"explicit\",\"segments\":[";
+  std::map<std::string, std::set<std::string>> allowed;
+  for (size_t segment_index = 0; segment_index < segments.size();
+       ++segment_index) {
+    const BatchSegmentInput& segment = segments[segment_index];
+    if (!SafeId(segment.id) || segment.id.empty() ||
+        !allowed.emplace(segment.id, std::set<std::string>()).second ||
+        segment.candidates.empty() ||
+        segment.candidates.size() > kMaxCandidatesPerSegment ||
+        segment.preceding_text.size() > 32768 ||
+        segment.following_text.size() > 32768 || segment.reading.size() > 512) {
+      return false;
+    }
+    std::string escaped;
+    if (segment_index) json << ',';
+    json << "{\"id\":\"" << segment.id << "\",\"preceding_text\":";
+    if (!EscapeJson(segment.preceding_text, &escaped)) return false;
+    json << '\"' << escaped << "\",\"following_text\":";
+    if (!EscapeJson(segment.following_text, &escaped)) return false;
+    json << '\"' << escaped << "\",\"read\":";
+    if (!EscapeJson(segment.reading, &escaped)) return false;
+    json << '\"' << escaped << "\",\"candidates\":[";
+    for (size_t candidate_index = 0;
+         candidate_index < segment.candidates.size(); ++candidate_index) {
+      const CandidateInput& candidate = segment.candidates[candidate_index];
+      if (!SafeId(candidate.id) || candidate.value.size() > 4096 ||
+          candidate.original_rank != static_cast<int>(candidate_index) + 1 ||
+          !allowed[segment.id].insert(candidate.id).second) {
+        return false;
+      }
+      std::string escaped_id;
+      std::string escaped_value;
+      if (!EscapeJson(candidate.id, &escaped_id) ||
+          !EscapeJson(candidate.value, &escaped_value)) {
+        return false;
+      }
+      if (candidate_index) json << ',';
+      json << "{\"id\":\"" << escaped_id << "\",\"text\":\""
+           << escaped_value << "\",\"rank\":" << candidate.original_rank
+           << '}';
+    }
+    json << "]}";
+  }
+  json << "]}\n";
+  const std::string payload = json.str();
+  if (payload.size() > kMaxRequestBytes) return false;
+
+  std::string response;
+  if (!ExchangePayload(pipe_name_, payload, budget_ms, &response)) return false;
+  return ParseBatchResponse(response, request_id, allowed, results);
 }
 
 }  // namespace ai_ranker
@@ -322,6 +453,10 @@ bool Client::Rank(const std::string&, const std::string&,
 bool Client::Rank(const std::string&, const std::string&,
                   const std::string&, const std::vector<CandidateInput>&, int,
                   std::vector<RankedCandidate>*) const {
+  return false;
+}
+bool Client::RankBatch(const std::vector<BatchSegmentInput>&, int,
+                       std::vector<BatchSegmentResult>*) const {
   return false;
 }
 }  // namespace ai_ranker

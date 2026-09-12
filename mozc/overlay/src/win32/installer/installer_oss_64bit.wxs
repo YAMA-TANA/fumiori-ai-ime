@@ -386,8 +386,8 @@
       <RegistryValue Id="RunBroker" Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="Mozc Prelauncher" Action="write" Type="string" Value="&quot;[MozcDir]mozc_broker.exe&quot; --mode=prelaunch_processes" />
     </Component>
 
-    <!-- The tray is resident, but the AI model is OFF by default.  The model
-         is loaded only after the user explicitly enables AI from the tray. -->
+    <!-- The tray and AI model start at user logon by default.  The user can
+         turn the model off from the tray without disabling the IME. -->
     <Component Id="YamatanaTrayStartup" Directory="TARGETDIR">
       <RegistryValue Id="RunYamatanaAIIME" Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="Yamatana AI IME" Action="write" Type="string" Value="&quot;[YamatanaRuntimeDir]YamatanaAIIME.exe&quot;" KeyPath="yes" />
     </Component>

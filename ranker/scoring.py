@@ -286,6 +286,7 @@ def preserve_mozc_top_if_uncertain(
     evidence_scores: Optional[Mapping[str, float]] = None,
     candidate_texts: Optional[Mapping[str, str]] = None,
     reading: str = "",
+    thresholds: Optional[Mapping[str, float]] = None,
 ) -> list[tuple[float, int, str]]:
     """Choose AI1/Mozc1 using delta, AI margin, Mozc rank and surface type."""
     if not scored:
@@ -314,6 +315,31 @@ def preserve_mozc_top_if_uncertain(
         default=neural_top,
     )
     runner_text = (candidate_texts or {}).get(runner_item[2], "")
+    policy = thresholds or {}
+    external_context_min = float(
+        policy.get("minimum_external_context", MIN_EXTERNAL_CONTEXT_SIGNAL)
+    )
+    internal_context_min = float(
+        policy.get("minimum_internal_context", MIN_INTERNAL_CONTEXT_SIGNAL)
+    )
+    high_confidence = float(
+        policy.get("high_neural_confidence", HIGH_NEURAL_CONFIDENCE)
+    )
+    contextual_confidence = float(
+        policy.get("contextual_neural_confidence", CONTEXTUAL_NEURAL_CONFIDENCE)
+    )
+    contextual_lead = float(
+        policy.get("contextual_lead_over_mozc", CONTEXTUAL_LEAD_OVER_MOZC)
+    )
+    min_delta = float(policy.get("minimum_switch_delta", MIN_SWITCH_DELTA))
+    min_margin = float(policy.get("minimum_switch_margin", MIN_SWITCH_MARGIN))
+    kana_delta = float(
+        policy.get("minimum_kana_switch_delta", MIN_KANA_SWITCH_DELTA)
+    )
+    kana_margin = float(
+        policy.get("minimum_kana_switch_margin", MIN_KANA_SWITCH_MARGIN)
+    )
+    high_margin = float(policy.get("high_confidence_margin", HIGH_CONFIDENCE_MARGIN))
     external_context = context_signal_length(prefix, suffix)
     internal_context = 0
     if candidate_texts:
@@ -322,24 +348,24 @@ def preserve_mozc_top_if_uncertain(
             candidate_texts.get(mozc_top[2], ""),
         )
     has_structural_context = (
-        external_context >= MIN_EXTERNAL_CONTEXT_SIGNAL
-        or internal_context >= MIN_INTERNAL_CONTEXT_SIGNAL
+        external_context >= external_context_min
+        or internal_context >= internal_context_min
     )
     rank_relief = min(0.30, max(0.0, (mozc_rank - 1) * 0.05))
-    delta_threshold = max(0.25, MIN_SWITCH_DELTA - rank_relief)
-    margin_threshold = MIN_SWITCH_MARGIN
+    delta_threshold = max(0.25, min_delta - rank_relief)
+    margin_threshold = min_margin
     if ai1_type == "reading_passthrough":
-        delta_threshold = MIN_KANA_SWITCH_DELTA
-        margin_threshold = MIN_KANA_SWITCH_MARGIN
+        delta_threshold = kana_delta
+        margin_threshold = kana_margin
     high_confidence_override = (
-        confidence >= HIGH_NEURAL_CONFIDENCE and margin >= HIGH_CONFIDENCE_MARGIN
+        confidence >= high_confidence and margin >= high_margin
     )
     clear_score_override = (
         delta >= delta_threshold and margin >= margin_threshold
     )
     contextual_override = (
-        confidence >= CONTEXTUAL_NEURAL_CONFIDENCE
-        and delta >= CONTEXTUAL_LEAD_OVER_MOZC
+        confidence >= contextual_confidence
+        and delta >= contextual_lead
         and margin >= margin_threshold
     )
     # Arabic and kanji spellings of the same numeric expression (15日/十五日)

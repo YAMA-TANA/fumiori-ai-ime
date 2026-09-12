@@ -113,14 +113,17 @@ class FakeRankerServer {
       if (request.size() > 262144) return false;
     }
 
-    const std::string reading_marker = "\"read\":\"";
-    const size_t reading_start = request.find(reading_marker);
-    if (reading_start != std::string::npos) {
-      const size_t value_start = reading_start + reading_marker.size();
-      const size_t value_end = request.find('"', value_start);
-      if (value_end != std::string::npos) {
-        std::lock_guard<std::mutex> lock(readings_mutex_);
-        readings_.push_back(request.substr(value_start, value_end - value_start));
+    const bool is_batch = request.find("\"segments\":[") != std::string::npos;
+    if (!is_batch) {
+      const std::string reading_marker = "\"read\":\"";
+      const size_t reading_start = request.find(reading_marker);
+      if (reading_start != std::string::npos) {
+        const size_t value_start = reading_start + reading_marker.size();
+        const size_t value_end = request.find('"', value_start);
+        if (value_end != std::string::npos) {
+          std::lock_guard<std::mutex> lock(readings_mutex_);
+          readings_.push_back(request.substr(value_start, value_end - value_start));
+        }
       }
     }
 
@@ -132,6 +135,83 @@ class FakeRankerServer {
     if (id_end == std::string::npos) return false;
     const std::string request_id =
         request.substr(id_value_start, id_end - id_value_start);
+
+    if (is_batch) {
+      static const std::regex segment_header(
+          "\\{\\\"id\\\":\\\"([A-Za-z0-9_.:-]+)\\\","
+          "\\\"preceding_text\\\":\\\"[^\"]*\\\","
+          "\\\"following_text\\\":\\\"[^\"]*\\\","
+          "\\\"read\\\":\\\"([^\"]*)\\\","
+          "\\\"candidates\\\":\\[");
+      std::vector<std::string> segment_ids;
+      std::vector<std::string> segment_readings;
+      std::vector<std::vector<std::string>> segment_candidate_ids;
+      size_t cursor = request.find('{', request.find("\"segments\":["));
+      while (cursor != std::string::npos) {
+        const std::string tail = request.substr(cursor);
+        std::smatch match;
+        if (!std::regex_search(tail, match, segment_header,
+                               std::regex_constants::match_continuous)) {
+          break;
+        }
+        const size_t candidate_start = cursor + match.length();
+        const size_t candidate_end = request.find("]}", candidate_start);
+        if (candidate_end == std::string::npos) return false;
+        const std::string candidate_body =
+            request.substr(candidate_start, candidate_end - candidate_start);
+        static const std::regex candidate_regex(
+            "\\{\\\"id\\\":\\\"([A-Za-z0-9_.:-]+)\\\",\\\"text\\\":");
+        std::vector<std::string> ids;
+        for (std::sregex_iterator it(candidate_body.begin(), candidate_body.end(),
+                                     candidate_regex),
+             end;
+             it != end; ++it) {
+          ids.push_back((*it)[1].str());
+        }
+        if (ids.empty()) return false;
+        segment_ids.push_back(match[1].str());
+        segment_readings.push_back(match[2].str());
+        segment_candidate_ids.push_back(std::move(ids));
+        cursor = request.find('{', candidate_end + 2);
+      }
+      if (segment_ids.empty()) return false;
+
+      const bool winner_enabled =
+          required_fragment_.empty() ||
+          request.find(required_fragment_) != std::string::npos;
+      {
+        std::lock_guard<std::mutex> lock(readings_mutex_);
+        for (size_t i = 0; i < segment_ids.size(); ++i) {
+          readings_.push_back(segment_readings[i]);
+          candidate_counts_.push_back(segment_candidate_ids[i].size());
+        }
+      }
+      std::ostringstream response;
+      response << "{\"request_id\":\"" << request_id
+               << "\",\"segments\":[";
+      for (size_t i = 0; i < segment_ids.size(); ++i) {
+        if (i) response << ',';
+        std::string winner = segment_candidate_ids[i].front();
+        if (winner_enabled && std::find(segment_candidate_ids[i].begin(),
+                                        segment_candidate_ids[i].end(), winner_) !=
+                                 segment_candidate_ids[i].end()) {
+          winner = winner_;
+        }
+        response << "{\"id\":\"" << segment_ids[i]
+                 << "\",\"winner_id\":\"" << winner
+                 << "\",\"confidence\":"
+                 << (winner == winner_ && winner_enabled ? 0.95 : 0.60)
+                 << '}';
+      }
+      response << "]}\n";
+      const std::string payload = response.str();
+      DWORD written = 0;
+      WriteFile(pipe_, payload.data(), static_cast<DWORD>(payload.size()),
+                &written, nullptr);
+      FlushFileBuffers(pipe_);
+      DisconnectNamedPipe(pipe_);
+      return true;
+    }
 
     static const std::regex candidate_regex(
         "\\{\\\"id\\\":\\\"([A-Za-z0-9_.:-]+)\\\",\\\"text\\\":");
@@ -240,11 +320,7 @@ TEST(AiRewriterTest, PredictorRealtimeMarkerSkipsAiRanker) {
 }
 
 #ifdef _WIN32
-TEST(AiRewriterTest, BoundaryProbeMergesWhenWholeWordRepairClearlyWins) {
-  const std::wstring pipe_name =
-      L"\\\\.\\pipe\\yamatana_ai_rewriter_resize_test";
-  FakeRankerServer server(pipe_name, "repair0");
-  ASSERT_TRUE(server.valid());
+TEST(AiRewriterTest, SemanticBoundaryRepairDoesNotIssueAnAiRequest) {
   CompoundDictionary dictionary;
 
   Segments segments;
@@ -259,22 +335,11 @@ TEST(AiRewriterTest, BoundaryProbeMergesWhenWholeWordRepairClearlyWins) {
   context.set_preceding_text("この曲の");
   const ConversionRequest request =
       ConversionRequestBuilder().SetContext(context).Build();
-  AiRewriter rewriter(&dictionary, pipe_name);
-  const auto resize = rewriter.CheckResizeSegmentsRequest(request, segments);
-
-  ASSERT_TRUE(resize.has_value());
-  EXPECT_EQ(resize->segment_index, 0);
-  EXPECT_EQ(resize->segment_sizes[0], 6);
-  for (size_t i = 1; i < resize->segment_sizes.size(); ++i) {
-    EXPECT_EQ(resize->segment_sizes[i], 0);
-  }
+  AiRewriter rewriter(&dictionary, L"unused-ai-ime-pipe");
+  EXPECT_FALSE(rewriter.CheckResizeSegmentsRequest(request, segments).has_value());
 }
 
-TEST(AiRewriterTest, BoundaryProbeKeepsMozcBoundaryWhenBaselineWins) {
-  const std::wstring pipe_name =
-      L"\\\\.\\pipe\\yamatana_ai_rewriter_baseline_test";
-  FakeRankerServer server(pipe_name, "baseline");
-  ASSERT_TRUE(server.valid());
+TEST(AiRewriterTest, SemanticBoundaryKeepsMozcBoundaryWithoutAi) {
   CompoundDictionary dictionary;
 
   Segments segments;
@@ -286,7 +351,7 @@ TEST(AiRewriterTest, BoundaryProbeKeepsMozcBoundaryWhenBaselineWins) {
   second->add_candidate()->value = "率";
 
   const ConversionRequest request;
-  AiRewriter rewriter(&dictionary, pipe_name);
+  AiRewriter rewriter(&dictionary, L"unused-ai-ime-pipe");
   EXPECT_FALSE(rewriter.CheckResizeSegmentsRequest(request, segments).has_value());
 }
 
@@ -323,11 +388,7 @@ TEST(AiRewriterTest, AvailableRankerDoesNotMergeGrammarSuffix) {
   EXPECT_FALSE(rewriter.CheckResizeSegmentsRequest(request, segments).has_value());
 }
 
-TEST(AiRewriterTest, BoundaryProbeLocksSplitWhenSplitOnlyRepairWins) {
-  const std::wstring pipe_name =
-      L"\\\\.\\pipe\\yamatana_ai_rewriter_preserve_test";
-  FakeRankerServer server(pipe_name, "repair0");
-  ASSERT_TRUE(server.valid());
+TEST(AiRewriterTest, SemanticBoundaryDoesNotLockSplitWithAi) {
   CompoundDictionary dictionary;
 
   Segments segments;
@@ -339,20 +400,11 @@ TEST(AiRewriterTest, BoundaryProbeLocksSplitWhenSplitOnlyRepairWins) {
   second->add_candidate()->value = "少年";
 
   const ConversionRequest request;
-  AiRewriter rewriter(&dictionary, pipe_name);
-  const auto resize = rewriter.CheckResizeSegmentsRequest(request, segments);
-
-  ASSERT_TRUE(resize.has_value());
-  EXPECT_EQ(resize->segment_index, 0);
-  EXPECT_EQ(resize->segment_sizes[0], 3);
-  EXPECT_EQ(resize->segment_sizes[1], 5);
+  AiRewriter rewriter(&dictionary, L"unused-ai-ime-pipe");
+  EXPECT_FALSE(rewriter.CheckResizeSegmentsRequest(request, segments).has_value());
 }
 
-TEST(AiRewriterTest, BoundaryProbeRestoresCollapsedCompoundWhenSplitWins) {
-  const std::wstring pipe_name =
-      L"\\\\.\\pipe\\yamatana_ai_rewriter_split_test";
-  FakeRankerServer server(pipe_name, "repair0");
-  ASSERT_TRUE(server.valid());
+TEST(AiRewriterTest, SemanticBoundaryDoesNotRestoreCollapsedCompoundWithAi) {
   CompoundDictionary dictionary;
 
   Segments segments;
@@ -364,16 +416,8 @@ TEST(AiRewriterTest, BoundaryProbeRestoresCollapsedCompoundWhenSplitWins) {
   segment->add_candidate()->value = "ヒコウショウネン";
 
   const ConversionRequest request;
-  AiRewriter rewriter(&dictionary, pipe_name);
-  const auto resize = rewriter.CheckResizeSegmentsRequest(request, segments);
-
-  ASSERT_TRUE(resize.has_value());
-  EXPECT_EQ(resize->segment_index, 0);
-  EXPECT_EQ(resize->segment_sizes[0], 3);
-  EXPECT_EQ(resize->segment_sizes[1], 5);
-  for (size_t i = 2; i < resize->segment_sizes.size(); ++i) {
-    EXPECT_EQ(resize->segment_sizes[i], 0);
-  }
+  AiRewriter rewriter(&dictionary, L"unused-ai-ime-pipe");
+  EXPECT_FALSE(rewriter.CheckResizeSegmentsRequest(request, segments).has_value());
 }
 
 TEST(AiRewriterTest, RankerWinnerMovesToCandidateZero) {
@@ -407,7 +451,7 @@ TEST(AiRewriterTest, RankerWinnerMovesToCandidateZero) {
             0);
 }
 
-TEST(AiRewriterTest, SendsAtMostEightDistinctSurfacesToRanker) {
+TEST(AiRewriterTest, SendsAtMostFiveDistinctSurfacesToRanker) {
   const std::wstring pipe_name =
       L"\\\\.\\pipe\\yamatana_ai_rewriter_candidate_limit_test";
   FakeRankerServer server(pipe_name, "c8");
@@ -430,7 +474,7 @@ TEST(AiRewriterTest, SendsAtMostEightDistinctSurfacesToRanker) {
   EXPECT_EQ(segments.segment(0).candidate(0).value, "候補0");
   const std::vector<size_t> counts = server.candidate_counts();
   ASSERT_EQ(counts.size(), 1);
-  EXPECT_EQ(counts[0], 8);
+  EXPECT_EQ(counts[0], 5);
 }
 
 TEST(AiRewriterTest, DuplicateSurfacesAreNotSentAsSeparateChoices) {
@@ -509,10 +553,10 @@ TEST(AiRewriterTest, FollowingSegmentsComeBeforeDocumentSuffix) {
   EXPECT_EQ(segments.segment(0).candidate(0).value, "花");
 }
 
-TEST(AiRewriterTest, MultipleSegmentsAreRankedFromRightToLeft) {
+TEST(AiRewriterTest, MultipleSegmentsAreRankedFromLeftToRight) {
   const std::wstring pipe_name =
-      L"\\\\.\\pipe\\yamatana_ai_rewriter_right_to_left_test";
-  FakeRankerServer server(pipe_name, "c0", std::string(), 2);
+      L"\\\\.\\pipe\\yamatana_ai_rewriter_left_to_right_test";
+  FakeRankerServer server(pipe_name, "c0");
   ASSERT_TRUE(server.valid());
 
   Segments segments;
@@ -530,7 +574,7 @@ TEST(AiRewriterTest, MultipleSegmentsAreRankedFromRightToLeft) {
 
   EXPECT_FALSE(rewriter.Rewrite(request, &segments));
   EXPECT_EQ(server.readings(),
-            (std::vector<std::string>{"みぎ", "ひだり"}));
+            (std::vector<std::string>{"ひだり", "みぎ"}));
 }
 
 TEST(AiRewriterTest, LongCollapsedPhraseAtSentenceStartUsesAi) {

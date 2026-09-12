@@ -3,9 +3,23 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import time
 from pathlib import Path
+
+# Avoid an optional sklearn/pandas import chain in Transformers 4.57 on
+# Windows.  Exporting a model never uses the sklearn generation helpers.
+_find_spec = importlib.util.find_spec
+
+
+def _find_spec_without_sklearn(name: str, *args, **kwargs):
+    if name == "sklearn" or name.startswith("sklearn."):
+        return None
+    return _find_spec(name, *args, **kwargs)
+
+
+importlib.util.find_spec = _find_spec_without_sklearn
 
 import numpy as np
 import onnx

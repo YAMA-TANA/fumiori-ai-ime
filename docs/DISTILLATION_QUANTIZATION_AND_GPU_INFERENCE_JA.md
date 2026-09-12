@@ -85,7 +85,7 @@ $$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{task}} + \alpha \cdot \mathcal
 
 ### 4.1 GPU用 Native FP16 ONNX (`ruri-ime-fp16.onnx`)
 - **サイズ**: **134.11 MB** (140,622,837 bytes)
-- **ターゲット**: Windows DirectML (`DmlExecutionProvider`)
+- **ターゲット**: Windows CUDA (`CUDAExecutionProvider`) / DirectML (`DmlExecutionProvider`)
 - **最適化**: 重み・計算グラフ全体をFP16でネイティブエクスポート。Direct3D 12対応GPUのTensorコア / シェーダーパイプラインで高スループット推論を実現。
 
 ### 4.2 CPU用 Dynamic INT8 ONNX (`ruri-ime-int8.onnx`)
@@ -102,20 +102,25 @@ IME起動時、設定ファイル（`product_settings.py`）の `compute_mode` �
 ```python
 available = set(ort.get_available_providers())
 requested = str(self.settings["compute_mode"]) # "auto", "gpu", "cpu"
-use_gpu = requested in {"auto", "gpu"} and "DmlExecutionProvider" in available
+gpu_provider = next(
+    (name for name in ("CUDAExecutionProvider", "DmlExecutionProvider")
+     if name in available),
+    None,
+)
+use_gpu = requested in {"auto", "gpu"} and gpu_provider is not None
 
 if use_gpu:
     # build/onnx-model-70m/ruri-ime-fp16.onnx (134MB) を優先ロード
-    providers = ["DmlExecutionProvider", "CPUExecutionProvider"]
-    self.device = "gpu-directml"
+    providers = [gpu_provider, "CPUExecutionProvider"]
+    self.device = "gpu-cuda" if gpu_provider == "CUDAExecutionProvider" else "gpu-directml"
 else:
     # build/onnx-model-70m/ruri-ime-int8.onnx (67.8MB) を優先ロード
     providers = ["CPUExecutionProvider"]
     self.device = "cpu"
 ```
 
-### 5.2 DirectML ウォームアップ
-DirectMLは初回バッチ形状に対してシェーダーをJITコンパイルします。IMEの初回変換遅延（ヒッチ）を防止するため、初期化時にMozc標準の8候補バッチ形状でウォームアップ推論を実行します。
+### 5.2 GPU ウォームアップ
+CUDA / DirectMLは初回バッチ形状に対してカーネルまたはシェーダーを準備します。IMEの初回変換遅延（ヒッチ）を防止するため、初期化時にMozc標準の8候補バッチ形状でウォームアップ推論を実行します。
 
 ---
 

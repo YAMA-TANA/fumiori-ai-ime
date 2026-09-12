@@ -6,16 +6,17 @@ Yamatana AI IME v2の変換候補再順位付け用モデルです。`cl-nagoya/
 
 ## Version and provenance
 
-### 1. Standard Distilled Model (Recommended: 70M Series)
-- Bundle version: `v2.0.5-beta-70m`
+### 1. LoRA3 + LoRA6 Ensemble (Recommended: 70M Series)
+- Bundle version: `v2.0.6-beta-70m-ensemble`
+- Runtime uses a calibrated 25/75 ensemble of the LoRA3 and preceding-only LoRA6 variants.
 - Student model: `cl-nagoya/ruri-v3-70m` (ModernBERT architecture, 70.1M parameters, 22.3% size of teacher)
 - Distillation: Margin-MSE + Soft KL + Hard Margin compound distillation from 310M teacher
 - Fine-tuning data: 38,355 contextual pairs (including cultural agency homophone verbs and IT inference/implementation contexts)
 - Export: ONNX opset 18
-- CPU artifact: Dynamic INT8 (`ruri-ime-int8.onnx`, **67.76 MB**)
-- GPU artifact: DirectML FP16 (`ruri-ime-fp16.onnx`, **134.11 MB**)
+- CPU artifacts: Dynamic INT8 (`ruri-ime-lora3-int8.onnx`, `ruri-ime-lora6-int8.onnx`)
+- GPU artifacts: DirectML FP16 (`ruri-ime-lora3-fp16.onnx`, `ruri-ime-lora6-fp16.onnx`)
 - Artifact refresh: the 70M ONNX and tokenizer artifacts shipped in this release
-  were refreshed on 2026-09-08; exact file hashes are pinned in
+  were refreshed on 2026-09-09; exact file hashes are pinned in
   `model-manifest.json`.
 - Validation agreement with teacher: **99.85%** (Task val acc: 99.75%)
 

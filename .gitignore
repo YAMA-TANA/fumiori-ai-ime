@@ -30,6 +30,7 @@ integration/*.json
 data/massive_homophone_database.json
 data/homonym_ksasao/homonym.txt
 data/homonym_ksasao/homonym2.txt
+data/homophone_sources/
 
 # Local settings, secrets and tools
 .env

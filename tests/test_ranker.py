@@ -12,9 +12,17 @@ import time
 import unittest
 
 from client.fallback import original_order, safe_rank
-from ranker.protocol import ProtocolError, loads_strict, validate_request, validate_response
+from ranker.protocol import (
+    ProtocolError,
+    loads_strict,
+    validate_batch_request,
+    validate_batch_response,
+    validate_request,
+    validate_response,
+)
 from ranker.lexicon import contextual_candidate_bonus
 from ranker.ranker import (InteractiveBurstGuard, RuleBasedRanker,
+                           ResponseCache,
                            _low_integrity_pipe_security,
                            normalize_windows_pipe_name, process_line,
                            summarize_reorder)
@@ -160,6 +168,141 @@ class RankerTests(unittest.TestCase):
             ["c3", "c2", "c1"],
         )
 
+    def test_batch_protocol_returns_only_winner_and_confidence(self):
+        req = {
+            "request_id": "batch-protocol",
+            "inference_trigger": "explicit",
+            "segments": [{
+                "id": "s0",
+                "preceding_text": "庭には美しい",
+                "following_text": "が咲く",
+                "read": "はな",
+                "candidates": [
+                    {"id": "c0", "text": "花", "rank": 1},
+                    {"id": "c1", "text": "鼻", "rank": 2},
+                ],
+            }],
+        }
+        normalized = validate_batch_request(req)
+        response = {
+            "request_id": "batch-protocol",
+            "segments": [{"id": "s0", "winner_id": "c1", "confidence": 0.81}],
+        }
+        self.assertEqual(validate_batch_response(response, normalized), response)
+        with self.assertRaises(ProtocolError):
+            validate_batch_response({
+                "request_id": "batch-protocol",
+                "segments": [{
+                    "id": "s0", "winner_id": "c1", "confidence": 0.81,
+                    "score": 1.0,
+                }],
+            }, normalized)
+
+    def test_response_cache_ignores_request_id_and_expires(self):
+        class CountingRanker:
+            def __init__(self):
+                self.calls = 0
+
+            def rank(self, req):
+                self.calls += 1
+                return {
+                    "request_id": req["request_id"],
+                    "candidates": [
+                        {"id": item["id"], "score": float(-item["rank"]),
+                         "rank": item["rank"]}
+                        for item in req["candidates"]
+                    ],
+                }
+
+        delegate = CountingRanker()
+        cache = ResponseCache(delegate, ttl_seconds=0.02)
+        first = request("庭には美しい")
+        first["inference_trigger"] = "explicit"
+        cached = dict(first)
+        cached["request_id"] = "cache-2"
+        cache.rank(first)
+        result = cache.rank(cached)
+        self.assertEqual(delegate.calls, 1)
+        self.assertEqual(result["request_id"], "cache-2")
+        time.sleep(0.03)
+        cache.rank({**cached, "request_id": "cache-3"})
+        self.assertEqual(delegate.calls, 2)
+
+    def test_onnx_batch_flattens_all_segment_candidates_into_one_forward(self):
+        import numpy as np
+        from ranker.onnx_ranker import OnnxRuriReranker
+
+        class Encoding:
+            def __init__(self, index):
+                self.ids = [index + 1]
+                self.attention_mask = [1]
+
+        class CapturingTokenizer:
+            def __init__(self):
+                self.pairs = []
+
+            def encode_batch(self, pairs):
+                self.pairs = list(pairs)
+                return [Encoding(index) for index in range(len(self.pairs))]
+
+        class CountingSession:
+            def __init__(self):
+                self.calls = 0
+                self.batch_sizes = []
+
+            def run(self, _outputs, inputs):
+                self.calls += 1
+                size = int(inputs["input_ids"].shape[0])
+                self.batch_sizes.append(size)
+                return [np.arange(size, dtype=np.float32).reshape(-1, 1)]
+
+        tokenizer = CapturingTokenizer()
+        session = CountingSession()
+        ranker = object.__new__(OnnxRuriReranker)
+        ranker.tokenizer = tokenizer
+        ranker.session = session
+        ranker.context_enabled = True
+        ranker.context_chars = 128
+        ranker.query_variant = "current"
+        ranker.document_instruction = "一般的な日本語文書。"
+        ranker.lexicon = None
+        ranker.prior_w = 0.0
+        ranker.safety_gate = False
+
+        req = {
+            "request_id": "two-segment-one-batch",
+            "inference_trigger": "explicit",
+            "segments": [
+                {
+                    "id": "s0", "preceding_text": "前", "following_text": "後",
+                    "read": "はな",
+                    "candidates": [
+                        {"id": "c0", "text": "花", "rank": 1},
+                        {"id": "c1", "text": "鼻", "rank": 2},
+                        {"id": "c2", "text": "花", "rank": 3},
+                    ],
+                },
+                {
+                    "id": "s1", "preceding_text": "前花", "following_text": "終",
+                    "read": "はし",
+                    "candidates": [
+                        {"id": "c0", "text": "橋", "rank": 1},
+                        {"id": "c1", "text": "箸", "rank": 2},
+                    ],
+                },
+            ],
+        }
+        response = ranker.rank_batch(req)
+
+        self.assertEqual(session.calls, 1)
+        self.assertEqual(session.batch_sizes, [4])
+        self.assertEqual(len(tokenizer.pairs), 4)
+        self.assertEqual(
+            set(item["id"] for item in response["segments"]), {"s0", "s1"}
+        )
+        self.assertTrue(all(set(item) == {"id", "winner_id", "confidence"}
+                            for item in response["segments"]))
+
     def test_onnx_scores_every_candidate_in_one_forward_batch(self):
         import numpy as np
         from ranker.onnx_ranker import OnnxRuriReranker
@@ -227,6 +370,62 @@ class RankerTests(unittest.TestCase):
         self.assertEqual(explanation["decision"]["selected_id"], "c4")
         self.assertEqual(explanation["candidates"][0]["text"], "甲保")
         self.assertEqual(explanation["candidates"][0]["style_bonus"], 0.0)
+
+    def test_onnx_two_model_ensemble_uses_short_reading_calibration(self):
+        import numpy as np
+        from ranker.onnx_ranker import OnnxRuriReranker
+
+        class Encoding:
+            def __init__(self, index):
+                self.ids = [index + 1]
+                self.attention_mask = [1]
+
+        class CapturingTokenizer:
+            def encode_batch(self, pairs):
+                return [Encoding(index) for index, _pair in enumerate(pairs)]
+
+        class FixedSession:
+            def __init__(self, values):
+                self.values = np.asarray(values, dtype=np.float32).reshape(-1, 1)
+                self.calls = 0
+
+            def run(self, _outputs, _inputs):
+                self.calls += 1
+                return [self.values]
+
+        model_a = FixedSession([0.0, 2.0])
+        model_b = FixedSession([2.0, 0.0])
+        ranker = object.__new__(OnnxRuriReranker)
+        ranker.tokenizer = CapturingTokenizer()
+        ranker.sessions = [model_a, model_b]
+        ranker.session = model_a
+        ranker.ensemble_weights = [0.25, 0.75]
+        ranker.model_paths = ["a.onnx", "b.onnx"]
+        ranker.context_enabled = True
+        ranker.context_chars = 128
+        ranker.document_instruction = "一般的な日本語文書。"
+        ranker.lexicon = None
+        ranker.prior_w = 0.0
+        ranker.safety_gate = False
+
+        ranker.rank({
+            "request_id": "ensemble-short-reading",
+            "preceding_text": "文脈",
+            "following_text": "",
+            "read": "はな",
+            "candidates": [
+                {"id": "c0", "text": "花", "rank": 1},
+                {"id": "c1", "text": "鼻", "rank": 2},
+            ],
+        })
+
+        self.assertEqual(model_a.calls, 1)
+        self.assertEqual(model_b.calls, 1)
+        self.assertEqual(ranker.last_explanation["parameters"]["ensemble_weights"], [0.5, 0.5])
+        self.assertEqual(
+            ranker.last_explanation["formula"],
+            "evidence = weighted_model_ensemble + style_bonus + context_bonus - lexical_penalty - reading_identity_penalty; final = evidence - rank_prior_penalty",
+        )
 
     @unittest.skipUnless(sys.platform == "win32", "Windows security descriptor")
     def test_pipe_security_descriptor_allows_low_integrity_owner(self):

@@ -1,13 +1,14 @@
 """Residual LoRA Fine-Tuning for Ruri-v3-70m IME Reranker.
 
 Tunes a lightweight rank=16 LoRA on ModernBert Wqkv, Wo, Wi layers
-using the targeted residual disambiguation dataset (84.8k pairs).
+using the targeted residual disambiguation dataset (curated + public-corpus pairs).
 Directly fixes failure cases while preserving established Mozc & holdout accuracy.
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import shutil
@@ -17,6 +18,22 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
+# Transformers 4.57 eagerly imports its optional scikit-learn generation
+# helpers when AutoModel is imported.  On the Windows build used for this
+# project that optional native stack can terminate the interpreter before
+# model loading (pandas/scipy access violation).  LoRA training does not use
+# those helpers, so make sklearn unavailable only for this process.
+_find_spec = importlib.util.find_spec
+
+
+def _find_spec_without_sklearn(name: str, *args: Any, **kwargs: Any):
+    if name == "sklearn" or name.startswith("sklearn."):
+        return None
+    return _find_spec(name, *args, **kwargs)
+
+
+importlib.util.find_spec = _find_spec_without_sklearn
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:

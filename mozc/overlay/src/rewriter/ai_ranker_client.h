@@ -7,10 +7,9 @@
 namespace mozc {
 namespace ai_ranker {
 
-// Explicit conversion may need a full CPU inference pass.  Typing-time
-// realtime conversions skip AiRewriter entirely, so this budget is only paid
-// after the user explicitly requests conversion (normally with Space).
-constexpr int kDefaultTimeoutMs = 2000;
+// The entire explicit conversion path is intentionally bounded.  If the AI
+// does not answer within this budget, Mozc keeps its original candidate order.
+constexpr int kDefaultTimeoutMs = 400;
 
 // A request candidate is deliberately a copy of Mozc's existing value.  The
 // ranker can only return one of these IDs; it cannot create a replacement.
@@ -24,6 +23,20 @@ struct RankedCandidate {
   std::string id;
   double score = 0.0;
   int rank = 0;
+};
+
+struct BatchSegmentInput {
+  std::string id;
+  std::string preceding_text;
+  std::string following_text;
+  std::string reading;
+  std::vector<CandidateInput> candidates;
+};
+
+struct BatchSegmentResult {
+  std::string id;
+  std::string winner_id;
+  double confidence = 0.0;
 };
 
 class Client {
@@ -46,6 +59,12 @@ class Client {
             const std::string& reading,
             const std::vector<CandidateInput>& candidates, int timeout_ms,
             std::vector<RankedCandidate>* ranked) const;
+
+  // Rank all conversion segments in one compact request.  The response only
+  // contains one winner and confidence per segment.
+  bool RankBatch(const std::vector<BatchSegmentInput>& segments,
+                 int timeout_ms,
+                 std::vector<BatchSegmentResult>* results) const;
 
  private:
   std::wstring pipe_name_;

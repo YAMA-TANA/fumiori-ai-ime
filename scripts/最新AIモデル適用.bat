@@ -14,7 +14,9 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
-set "SRC=c:\Users\lotof\Videos\research\live2d\yamatana-ai-ime\build\onnx-model-70m"
+set "SRC3=c:\Users\lotof\Videos\research\live2d\yamatana-ai-ime\build\onnx-model-70m-lora3-20260909"
+set "SRC6=c:\Users\lotof\Videos\research\live2d\yamatana-ai-ime\build\onnx-model-70m-lora6-preceding-only-20260915"
+set "TOK=c:\Users\lotof\Videos\research\live2d\yamatana-ai-ime\build\onnx-model-70m\tokenizer.json"
 set "DST=C:\Program Files (x86)\Yamatana AI IME\ai_runtime\_internal\models\onnx"
 set "EXE=C:\Program Files (x86)\Yamatana AI IME\ai_runtime\YamatanaAIIME.exe"
 
@@ -23,9 +25,11 @@ taskkill /F /IM YamatanaAIIME.exe 2>nul
 timeout /t 2 /nobreak > nul
 
 echo 2. 最新ONNXモデルをコピー中...
-copy /Y "%SRC%\ruri-ime-fp16.onnx" "%DST%\ruri-ime-fp16.onnx"
-copy /Y "%SRC%\ruri-ime-int8.onnx" "%DST%\ruri-ime-int8.onnx"
-copy /Y "%SRC%\tokenizer.json" "%DST%\tokenizer.json"
+copy /Y "%SRC3%\ruri-ime-fp16.onnx" "%DST%\ruri-ime-lora3-fp16.onnx"
+copy /Y "%SRC3%\ruri-ime-int8.onnx" "%DST%\ruri-ime-lora3-int8.onnx"
+copy /Y "%SRC6%\ruri-ime-fp16.onnx" "%DST%\ruri-ime-lora6-fp16.onnx"
+copy /Y "%SRC6%\ruri-ime-int8.onnx" "%DST%\ruri-ime-lora6-int8.onnx"
+copy /Y "%TOK%" "%DST%\tokenizer.json"
 
 if %errorlevel% equ 0 (
     echo.

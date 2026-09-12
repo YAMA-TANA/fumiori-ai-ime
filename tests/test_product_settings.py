@@ -40,10 +40,10 @@ class FakeRegistry:
 
 
 class ProductSettingsTests(unittest.TestCase):
-    def test_missing_file_uses_ai_off_defaults(self) -> None:
+    def test_missing_file_uses_ai_on_defaults(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             settings = load_settings(Path(temp) / "missing.json")
-        self.assertFalse(settings["ai_autostart"])
+        self.assertTrue(settings["ai_autostart"])
         self.assertTrue(settings["context_enabled"])
         self.assertEqual(settings["context_chars"], 128)
         self.assertEqual(settings["compute_mode"], "auto")
@@ -58,7 +58,7 @@ class ProductSettingsTests(unittest.TestCase):
                 "custom_instruction": "x" * 800,
             }
         )
-        self.assertFalse(settings["ai_autostart"])
+        self.assertTrue(settings["ai_autostart"])
         self.assertEqual(settings["context_chars"], 128)
         self.assertEqual(settings["document_domain"], "general")
         self.assertEqual(settings["compute_mode"], "auto")

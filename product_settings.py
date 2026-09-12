@@ -10,7 +10,7 @@ from typing import Any, Mapping, Optional
 
 
 PRODUCT_NAME = "Yamatana AI IME (MOZC Ver)"
-PRODUCT_VERSION = "2.0.4-beta"
+PRODUCT_VERSION = "2.0.7-beta"
 SETTINGS_SCHEMA = 1
 LEGACY_AUTOSTART_VALUE_NAME = "Yamatana-AI-IME"
 WINDOWS_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
@@ -36,9 +36,9 @@ CONTEXT_LENGTHS = (0, 32, 64, 128, 256, 512)
 
 DEFAULT_SETTINGS: dict[str, Any] = {
     "schema": SETTINGS_SCHEMA,
-    # The tray starts with Windows, but the model process does not.  This is
-    # deliberately false so installation never consumes AI memory by default.
-    "ai_autostart": False,
+    # The tray and the model start with Windows by default.  Users can turn
+    # the model off from the tray when they prefer ordinary Mozc conversion.
+    "ai_autostart": True,
     "context_enabled": True,
     "context_chars": 128,
     "document_domain": "general",

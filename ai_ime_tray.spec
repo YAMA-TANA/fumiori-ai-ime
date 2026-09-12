@@ -1,9 +1,11 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
+import shutil
 import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_dynamic_libs
 from scripts.release_version import (
     DEFAULT_PRODUCT_VERSION,
     DEFAULT_RELEASE_LABEL,
@@ -31,12 +33,32 @@ def asset(local_path, installed_path):
         return str(installed)
     return str(local)
 
+
+def staged_asset(local_path, installed_path, output_name):
+    """Copy a model to a stable package name before PyInstaller collects it."""
+    source = Path(asset(local_path, installed_path))
+    staged = ROOT / "build" / "pyinstaller-models" / output_name
+    staged.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(source, staged)
+    return str(staged)
+
 block_cipher = None
 
+cuda_binaries = []
+for cuda_package in (
+    'nvidia.cuda_runtime',
+    'nvidia.cuda_nvrtc',
+    'nvidia.cublas',
+    'nvidia.cudnn',
+):
+    cuda_binaries.extend(collect_dynamic_libs(cuda_package))
+
 all_datas = [
-    (asset('build/onnx-model-70m/ruri-ime-fp16.onnx', 'models/onnx/ruri-ime-fp16.onnx'), 'models/onnx'),
-    (asset('build/onnx-model-70m/ruri-ime-int8.onnx', 'models/onnx/ruri-ime-int8.onnx'), 'models/onnx'),
-    (asset('models/ruri-v3-70m-ime-distilled/tokenizer.json', 'models/onnx/tokenizer.json'), 'models/onnx'),
+    (staged_asset('build/onnx-model-70m-lora3-20260909/ruri-ime-fp16.onnx', 'models/onnx/ruri-ime-lora3-fp16.onnx', 'ruri-ime-lora3-fp16.onnx'), 'models/onnx'),
+    (staged_asset('build/onnx-model-70m-lora3-20260909/ruri-ime-int8.onnx', 'models/onnx/ruri-ime-lora3-int8.onnx', 'ruri-ime-lora3-int8.onnx'), 'models/onnx'),
+    (staged_asset('build/onnx-model-70m-lora6-preceding-only-20260915/ruri-ime-fp16.onnx', 'models/onnx/ruri-ime-lora6-fp16.onnx', 'ruri-ime-lora6-fp16.onnx'), 'models/onnx'),
+    (staged_asset('build/onnx-model-70m-lora6-preceding-only-20260915/ruri-ime-int8.onnx', 'models/onnx/ruri-ime-lora6-int8.onnx', 'ruri-ime-lora6-int8.onnx'), 'models/onnx'),
+    (asset('build/onnx-model-70m/tokenizer.json', 'models/onnx/tokenizer.json'), 'models/onnx'),
     (asset('data/massive_homophone_database.json', 'data/massive_homophone_database.json'), 'data'),
     ('PRIVACY.md', 'documents'),
     ('LICENSE', 'documents'),
@@ -70,12 +92,16 @@ all_hidden = [
     'ranker.protocol',
     'ranker.loading_ui',
     'client.windows_pipe',
+    'nvidia.cuda_runtime',
+    'nvidia.cuda_nvrtc',
+    'nvidia.cublas',
+    'nvidia.cudnn',
 ]
 
 a = Analysis(
     ['ai_ime_tray.py'],
     pathex=[str(ROOT)],
-    binaries=[],
+    binaries=cuda_binaries,
     datas=all_datas,
     hiddenimports=all_hidden,
     hookspath=[],
