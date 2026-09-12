@@ -7,37 +7,29 @@ if(!executablePath)throw new Error('No Chrome/Chromium executable found');
 const browser=await puppeteer.launch({executablePath,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 const base=process.env.SMOKE_BASE||'http://127.0.0.1:4173',baseOrigin=new URL(base).origin,failures=[];
 const local=url=>{try{return new URL(url).origin===baseOrigin}catch{return false}};
-
-async function open(path,check){
-  const page=await browser.newPage(),errors=[];
-  page.on('pageerror',err=>errors.push(String(err?.stack||err)));
-  page.on('response',response=>{const status=response.status(),url=response.url();if(local(url)&&status>=400&&!/\/favicon\.ico(?:\?|$)/i.test(url))errors.push(`HTTP ${status}: ${url}`)});
-  page.on('requestfailed',request=>{const url=request.url();if(local(url)&&!/\/favicon\.ico(?:\?|$)/i.test(url))errors.push(`request failed: ${url} — ${request.failure()?.errorText||'unknown'}`)});
-  page.on('console',msg=>{const text=msg.text();if(msg.type()==='error'&&!/Failed to load resource|googletagmanager|ERR_BLOCKED_BY_CLIENT/i.test(text))errors.push(`console: ${text}`)});
-  try{const response=await page.goto(`${base}${path}`,{waitUntil:'domcontentloaded',timeout:20000});if(!response?.ok())throw new Error(`HTTP ${response?.status()} for ${path}`);await check(page);await new Promise(r=>setTimeout(r,500));if(errors.length)throw new Error(errors.join('\n'));console.log(`PASS ${path}`)}catch(error){failures.push(`${path}: ${error.stack||error}`);console.error(`FAIL ${path}`,error)}finally{await page.close()}
-}
+async function open(path,check){const page=await browser.newPage(),errors=[];page.on('pageerror',err=>errors.push(String(err?.stack||err)));page.on('response',response=>{const status=response.status(),url=response.url();if(local(url)&&status>=400&&!/\/favicon\.ico(?:\?|$)/i.test(url))errors.push(`HTTP ${status}: ${url}`)});page.on('requestfailed',request=>{const url=request.url();if(local(url)&&!/\/favicon\.ico(?:\?|$)/i.test(url))errors.push(`request failed: ${url} — ${request.failure()?.errorText||'unknown'}`)});page.on('console',msg=>{const text=msg.text();if(msg.type()==='error'&&!/Failed to load resource|googletagmanager|ERR_BLOCKED_BY_CLIENT/i.test(text))errors.push(`console: ${text}`)});try{const response=await page.goto(`${base}${path}`,{waitUntil:'domcontentloaded',timeout:20000});if(!response?.ok())throw new Error(`HTTP ${response?.status()} for ${path}`);await check(page);await new Promise(r=>setTimeout(r,500));if(errors.length)throw new Error(errors.join('\n'));console.log(`PASS ${path}`)}catch(error){failures.push(`${path}: ${error.stack||error}`);console.error(`FAIL ${path}`,error)}finally{await page.close()}}
 
 await open('/pv-sites/pixel-lite/',async page=>{await page.waitForSelector('#canvas');await page.waitForSelector('#layerList .layer-row');for(const s of ['#playAnimation','#frameList','#exportSheet'])if(!await page.$(s))throw new Error(`missing ${s}`);const before=await page.$$eval('#layerList .layer-row',r=>r.length);await page.click('#addLayer');const after=await page.$$eval('#layerList .layer-row',r=>r.length);if(after!==before+1)throw new Error(`layer add failed: ${before} -> ${after}`);await page.click('[data-tool="select"]');const box=await page.$eval('#canvas',el=>{const r=el.getBoundingClientRect();return{x:r.left,y:r.top,w:r.width,h:r.height}});await page.mouse.move(box.x+box.w*.2,box.y+box.h*.2);await page.mouse.down();await page.mouse.move(box.x+box.w*.45,box.y+box.h*.4,{steps:4});await page.mouse.up();const selection=await page.$eval('#selectionInfo',el=>el.textContent.trim());if(!selection||selection==='—')throw new Error('marquee selection did not initialize')});
-
 await open('/pv-sites/audio-master-lite/',async page=>{await page.waitForSelector('#waveCanvas');for(const s of ['#trimSelection','#fadeIn','#fadeOut','#normalize','#undoEdit','#redoEdit','#playSelection','#exportSelection','#exportWav'])if(!await page.$(s))throw new Error(`missing ${s}`);if(!await page.$eval('#trimSelection',el=>el.disabled))throw new Error('trim should be disabled before audio is loaded')});
 
 await open('/pv-sites/pdf-workbench/',async page=>{
   await page.waitForSelector('#pdfCanvas');await page.waitForFunction(()=>Boolean(window.pdfjsLib&&window.PDFLib),{timeout:20000});
-  for(const s of ['[data-tool="select"]','[data-tool="whiteout"]','#exportTop','#undoTop','#redoTop','#extractCurrent','#extractRange','#extractRangeValue']){await page.waitForSelector(s);if(!await page.$(s))throw new Error(`missing ${s}`)}
+  for(const s of ['[data-tool="select"]','[data-tool="whiteout"]','#exportTop','#undoTop','#redoTop','#extractCurrent','#extractRange','#extractRangeValue','#mergeBox','#mergeInput','#mergeButton']){await page.waitForSelector(s);if(!await page.$(s))throw new Error(`missing ${s}`)}
   const label=await page.$eval('[data-tool="whiteout"]',el=>el.textContent.trim());if(!label)throw new Error('redaction control has no label');
   await page.evaluate(async()=>{const d=await PDFLib.PDFDocument.create();d.addPage([240,180]);d.addPage([240,180]);const bytes=await d.save(),file=new File([bytes],'smoke-two-pages.pdf',{type:'application/pdf'}),dt=new DataTransfer();dt.items.add(file);const input=document.querySelector('#fileInput');input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}))});
   await page.waitForFunction(()=>document.querySelector('#pageTotal')?.textContent.includes('2')&&!document.querySelector('#exportTop')?.disabled,{timeout:20000});
   await page.waitForFunction(()=>!document.querySelector('#extractCurrent')?.disabled,{timeout:5000});
   await page.evaluate(()=>{window.__pdfSmokeDownloads=[];const nativeCreate=URL.createObjectURL.bind(URL),nativeClick=HTMLAnchorElement.prototype.click;URL.createObjectURL=value=>{const url=nativeCreate(value);if(value instanceof Blob&&value.type==='application/pdf')window.__pdfSmokeLastBlob=value;return url};HTMLAnchorElement.prototype.click=function(){if(this.download){window.__pdfSmokeDownloads.push(this.download);return}return nativeClick.call(this)}});
-  await page.click('#extractCurrent');
-  await page.waitForFunction(()=>window.__pdfSmokeDownloads?.some(x=>/^page-1\.pdf$/i.test(x)),{timeout:30000});
-  const count=await page.evaluate(async()=>{const ab=await window.__pdfSmokeLastBlob.arrayBuffer(),doc=await PDFLib.PDFDocument.load(ab);return doc.getPageCount()});
-  if(count!==1)throw new Error(`current-page extraction produced ${count} pages`);
+  await page.click('#extractCurrent');await page.waitForFunction(()=>window.__pdfSmokeDownloads?.some(x=>/^page-1\.pdf$/i.test(x)),{timeout:30000});
+  let count=await page.evaluate(async()=>{const ab=await window.__pdfSmokeLastBlob.arrayBuffer(),doc=await PDFLib.PDFDocument.load(ab);return doc.getPageCount()});if(count!==1)throw new Error(`current-page extraction produced ${count} pages`);
+  await page.evaluate(async()=>{const one=await PDFLib.PDFDocument.create(),two=await PDFLib.PDFDocument.create();one.addPage([120,120]);two.addPage([120,120]);two.addPage([120,120]);const f1=new File([await one.save()],'one.pdf',{type:'application/pdf'}),f2=new File([await two.save()],'two.pdf',{type:'application/pdf'}),dt=new DataTransfer();dt.items.add(f1);dt.items.add(f2);const input=document.querySelector('#mergeInput');input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));window.__pdfSmokeDownloads=[];window.__pdfSmokeLastBlob=null});
+  await page.waitForFunction(()=>document.querySelectorAll('#mergeList .merge-row').length===2&&!document.querySelector('#mergeButton')?.disabled,{timeout:5000});
+  await page.click('#mergeButton');await page.waitForFunction(()=>window.__pdfSmokeDownloads?.some(x=>x==='merged.pdf'),{timeout:30000});
+  count=await page.evaluate(async()=>{const ab=await window.__pdfSmokeLastBlob.arrayBuffer(),doc=await PDFLib.PDFDocument.load(ab);return doc.getPageCount()});if(count!==3)throw new Error(`PDF merge produced ${count} pages instead of 3`);
 });
 
 await open('/pv-sites/voice-meter/',async page=>{await page.waitForSelector('#waveCanvas');for(const s of ['#micButton','#startButton','#stopButton','#promptText','#scoreValue'])if(!await page.$(s))throw new Error(`missing ${s}`);const text=await page.$eval('#promptText',el=>el.value.trim());if(!text)throw new Error('practice prompt did not initialize')});
 await open('/pv-sites/walk-air/',async page=>{for(const s of ['#cityForm','#cityInput','#locationButton','#dashboardCard','#sourceStatus']){await page.waitForSelector(s);if(!await page.$(s))throw new Error(`missing ${s}`)}});
 await open('/pv-sites/nature-pulse/',async page=>{for(const s of ['#placeForm','#placeInput','#gpsButton','#observationGrid','#status']){await page.waitForSelector(s);if(!await page.$(s))throw new Error(`missing ${s}`)}});
 await open('/pv-sites/food-lens/',async page=>{for(const s of ['#searchForm','#searchInput','#productGrid','#detailCard','#status']){await page.waitForSelector(s);if(!await page.$(s))throw new Error(`missing ${s}`)}});
-
 await browser.close();if(failures.length){console.error('\nBrowser smoke failures:\n'+failures.join('\n\n'));process.exit(1)}
