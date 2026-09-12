@@ -58,7 +58,7 @@ all_datas = [
     (staged_asset('build/onnx-model-70m-lora3-20260909/ruri-ime-int8.onnx', 'models/onnx/ruri-ime-lora3-int8.onnx', 'ruri-ime-lora3-int8.onnx'), 'models/onnx'),
     (staged_asset('build/onnx-model-70m-lora6-preceding-only-20260915/ruri-ime-fp16.onnx', 'models/onnx/ruri-ime-lora6-fp16.onnx', 'ruri-ime-lora6-fp16.onnx'), 'models/onnx'),
     (staged_asset('build/onnx-model-70m-lora6-preceding-only-20260915/ruri-ime-int8.onnx', 'models/onnx/ruri-ime-lora6-int8.onnx', 'ruri-ime-lora6-int8.onnx'), 'models/onnx'),
-    (asset('models/ruri-v3-70m-ime-distilled/tokenizer.json', 'models/onnx/tokenizer.json'), 'models/onnx'),
+    (asset('build/onnx-model-70m/tokenizer.json', 'models/onnx/tokenizer.json'), 'models/onnx'),
     (asset('data/massive_homophone_database.json', 'data/massive_homophone_database.json'), 'data'),
     ('PRIVACY.md', 'documents'),
     ('LICENSE', 'documents'),
