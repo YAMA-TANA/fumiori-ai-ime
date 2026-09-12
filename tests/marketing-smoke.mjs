@@ -24,7 +24,9 @@ await open('/pv-sites/pdf-workbench/',async page=>{
   let count=await page.evaluate(async()=>{const ab=await window.__pdfSmokeLastBlob.arrayBuffer(),doc=await PDFLib.PDFDocument.load(ab);return doc.getPageCount()});if(count!==1)throw new Error(`current-page extraction produced ${count} pages`);
   await page.evaluate(async()=>{const one=await PDFLib.PDFDocument.create(),two=await PDFLib.PDFDocument.create();one.addPage([120,120]);two.addPage([120,120]);two.addPage([120,120]);const f1=new File([await one.save()],'one.pdf',{type:'application/pdf'}),f2=new File([await two.save()],'two.pdf',{type:'application/pdf'}),dt=new DataTransfer();dt.items.add(f1);dt.items.add(f2);const input=document.querySelector('#mergeInput');input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));window.__pdfSmokeDownloads=[];window.__pdfSmokeLastBlob=null});
   await page.waitForFunction(()=>document.querySelectorAll('#mergeList .merge-row').length===2&&!document.querySelector('#mergeButton')?.disabled,{timeout:5000});
-  await page.click('#mergeButton');await page.waitForFunction(()=>window.__pdfSmokeDownloads?.some(x=>x==='merged.pdf'),{timeout:30000});
+  await page.click('#mergeButton');await page.waitForFunction(()=>['done','error'].includes(document.querySelector('#mergeBox')?.dataset.state),{timeout:30000});
+  const mergeState=await page.$eval('#mergeBox',el=>({state:el.dataset.state,error:el.dataset.error||''}));if(mergeState.state==='error')throw new Error(`PDF merge failed: ${mergeState.error||'unknown'}`);
+  if(!await page.evaluate(()=>window.__pdfSmokeDownloads?.some(x=>x==='merged.pdf')))throw new Error('PDF merge did not trigger merged.pdf download');
   count=await page.evaluate(async()=>{const ab=await window.__pdfSmokeLastBlob.arrayBuffer(),doc=await PDFLib.PDFDocument.load(ab);return doc.getPageCount()});if(count!==3)throw new Error(`PDF merge produced ${count} pages instead of 3`);
 });
 
