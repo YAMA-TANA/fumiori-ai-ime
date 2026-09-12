@@ -28,7 +28,7 @@ Yamatana AI IMEは、Mozcの変換候補をローカルAI rerankerで並べ替�
 
 1. [Releases](https://github.com/YAMA-TANA/yamatana-ai-ime/releases) から最新の `.msi` と `SHA256SUMS.txt` をダウンロードします。
 2. PowerShellで `Get-FileHash .\Yamatana-AI-IME-MOZC-Ver-<version>-x64.msi -Algorithm SHA256` を実行し、公開ハッシュと一致することを確認します。
-3. MSIをダブルクリックし、プライバシー説明を確認してインストールします。
+3. `Install-Yamatana-AI-IME.cmd` をダブルクリックしてインストールします。画面にMSI終了コードが表示され、`3010` または `1641` の場合は「インストール成功・PCの再起動が必要」と表示されます。MSIを直接実行する場合は、完了後のログまたは終了コードを確認してください。
 4. サインアウトまたは再起動後、トレイとAIモデルが起動します。`Win + Space` で **Yamatana AI IME (MOZC Ver)** を選択します。
 5. 通知領域のYamatanaアイコンからAIをOFFにできます。アイコンが隠れている場合は、タスクバーの `^` を開いてください。
 

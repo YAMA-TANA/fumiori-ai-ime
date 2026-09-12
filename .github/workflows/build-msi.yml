@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       release_label:
-        description: File/release label, for example 2.0.7-beta
+        description: File/release label, for example 2.0.8-beta
         required: true
-        default: 2.0.7-beta
+        default: 2.0.8-beta
       product_version:
         description: Numeric MSI ProductVersion
         required: true
-        default: 2.0.7.0
+        default: 2.0.8.0
       publish_release:
         description: Attach artifacts to a GitHub prerelease with tag v<release_label>
         type: boolean
@@ -50,6 +50,8 @@ jobs:
           path: |
             release/Yamatana-AI-IME-MOZC-Ver-${{ inputs.release_label }}-x64.msi
             release/SHA256SUMS.txt
+            release/install-msi.ps1
+            release/Install-Yamatana-AI-IME.cmd
           if-no-files-found: error
           retention-days: 30
       - name: Publish unsigned prerelease
@@ -65,3 +67,5 @@ jobs:
           files: |
             release/Yamatana-AI-IME-MOZC-Ver-${{ inputs.release_label }}-x64.msi
             release/SHA256SUMS.txt
+            release/install-msi.ps1
+            release/Install-Yamatana-AI-IME.cmd

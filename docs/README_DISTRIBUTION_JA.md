@@ -31,7 +31,7 @@
 
 ## 配布ファイル
 
-`Yamatana-AI-IME-MOZC-Ver-1.0.0-x64.msi` をダブルクリックしてください。
+同梱の `Install-Yamatana-AI-IME.cmd` をダブルクリックしてください。インストール終了後にMSI終了コードが表示され、`3010` または `1641` の場合は「インストール成功・PCの再起動が必要」と明示されます。ログは `Yamatana-AI-IME-install.log` に保存されます。
 本テスト配布版は未署名です。Windowsの警告が表示された場合は、発行元とSHA-256を確認してから続行してください。
 
 MSIX化の技術判断とMicrosoft Store向けの選択肢は、同梱の

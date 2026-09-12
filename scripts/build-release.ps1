@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-  [string]$ProductVersion = '2.0.7.0',
-  [string]$ReleaseLabel = '2.0.7-beta',
+  [string]$ProductVersion = '2.0.8.0',
+  [string]$ReleaseLabel = '2.0.8-beta',
   [switch]$SkipMozcDependencies
 )
 
@@ -71,6 +71,8 @@ try {
   $Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Msi).Hash
   $Line = "$Hash  $([IO.Path]::GetFileName($Msi))`n"
   [IO.File]::WriteAllText((Join-Path $RepoRoot 'release\SHA256SUMS.txt'), $Line, [Text.UTF8Encoding]::new($false))
+  Copy-Item (Join-Path $PSScriptRoot 'install-msi.ps1') (Join-Path $RepoRoot 'release\install-msi.ps1') -Force
+  Copy-Item (Join-Path $PSScriptRoot 'Install-Yamatana-AI-IME.cmd') (Join-Path $RepoRoot 'release\Install-Yamatana-AI-IME.cmd') -Force
   Write-Host "RELEASE_BUILD_PASS: $Msi $Hash"
 } finally {
   Pop-Location
