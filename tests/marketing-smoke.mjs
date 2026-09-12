@@ -21,14 +21,23 @@ await open('/pv-sites/pixel-lite/',async page=>{await page.waitForSelector('#can
 
 await open('/pv-sites/audio-master-lite/',async page=>{await page.waitForSelector('#waveCanvas');for(const s of ['#trimSelection','#fadeIn','#fadeOut','#normalize','#undoEdit','#redoEdit','#playSelection','#exportSelection','#exportWav'])if(!await page.$(s))throw new Error(`missing ${s}`);if(!await page.$eval('#trimSelection',el=>el.disabled))throw new Error('trim should be disabled before audio is loaded')});
 
-await open('/pv-sites/pdf-workbench/',async page=>{await page.waitForSelector('#pdfCanvas');await page.waitForFunction(()=>Boolean(window.pdfjsLib&&window.PDFLib),{timeout:20000});for(const s of ['[data-tool="select"]','[data-tool="whiteout"]','#exportTop','#undoTop','#redoTop'])if(!await page.$(s))throw new Error(`missing ${s}`);const label=await page.$eval('[data-tool="whiteout"]',el=>el.textContent.trim());if(!label)throw new Error('redaction control has no label')});
+await open('/pv-sites/pdf-workbench/',async page=>{
+  await page.waitForSelector('#pdfCanvas');await page.waitForFunction(()=>Boolean(window.pdfjsLib&&window.PDFLib),{timeout:20000});
+  for(const s of ['[data-tool="select"]','[data-tool="whiteout"]','#exportTop','#undoTop','#redoTop','#extractCurrent','#extractRange','#extractRangeValue']){await page.waitForSelector(s);if(!await page.$(s))throw new Error(`missing ${s}`)}
+  const label=await page.$eval('[data-tool="whiteout"]',el=>el.textContent.trim());if(!label)throw new Error('redaction control has no label');
+  await page.evaluate(async()=>{const d=await PDFLib.PDFDocument.create();d.addPage([240,180]);d.addPage([240,180]);const bytes=await d.save(),file=new File([bytes],'smoke-two-pages.pdf',{type:'application/pdf'}),dt=new DataTransfer();dt.items.add(file);const input=document.querySelector('#fileInput');input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}))});
+  await page.waitForFunction(()=>document.querySelector('#pageTotal')?.textContent.includes('2')&&!document.querySelector('#exportTop')?.disabled,{timeout:20000});
+  await page.waitForFunction(()=>!document.querySelector('#extractCurrent')?.disabled,{timeout:5000});
+  await page.evaluate(()=>{window.__pdfSmokeDownloads=[];const nativeCreate=URL.createObjectURL.bind(URL),nativeClick=HTMLAnchorElement.prototype.click;URL.createObjectURL=value=>{const url=nativeCreate(value);if(value instanceof Blob&&value.type==='application/pdf')window.__pdfSmokeLastBlob=value;return url};HTMLAnchorElement.prototype.click=function(){if(this.download){window.__pdfSmokeDownloads.push(this.download);return}return nativeClick.call(this)}});
+  await page.click('#extractCurrent');
+  await page.waitForFunction(()=>window.__pdfSmokeDownloads?.some(x=>/^page-1\.pdf$/i.test(x)),{timeout:30000});
+  const count=await page.evaluate(async()=>{const ab=await window.__pdfSmokeLastBlob.arrayBuffer(),doc=await PDFLib.PDFDocument.load(ab);return doc.getPageCount()});
+  if(count!==1)throw new Error(`current-page extraction produced ${count} pages`);
+});
 
 await open('/pv-sites/voice-meter/',async page=>{await page.waitForSelector('#waveCanvas');for(const s of ['#micButton','#startButton','#stopButton','#promptText','#scoreValue'])if(!await page.$(s))throw new Error(`missing ${s}`);const text=await page.$eval('#promptText',el=>el.value.trim());if(!text)throw new Error('practice prompt did not initialize')});
-
 await open('/pv-sites/walk-air/',async page=>{for(const s of ['#cityForm','#cityInput','#locationButton','#dashboardCard','#sourceStatus']){await page.waitForSelector(s);if(!await page.$(s))throw new Error(`missing ${s}`)}});
-
 await open('/pv-sites/nature-pulse/',async page=>{for(const s of ['#placeForm','#placeInput','#gpsButton','#observationGrid','#status']){await page.waitForSelector(s);if(!await page.$(s))throw new Error(`missing ${s}`)}});
-
 await open('/pv-sites/food-lens/',async page=>{for(const s of ['#searchForm','#searchInput','#productGrid','#detailCard','#status']){await page.waitForSelector(s);if(!await page.$(s))throw new Error(`missing ${s}`)}});
 
 await browser.close();if(failures.length){console.error('\nBrowser smoke failures:\n'+failures.join('\n\n'));process.exit(1)}
