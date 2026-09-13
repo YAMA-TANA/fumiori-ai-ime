@@ -151,7 +151,7 @@ class SpeculativeRanker:
             try:
                 with self._inference_lock:
                     response = self._delegate.rank(request)
-                self._store(request, response)
+                    self._store(request, response)
             except Exception:
                 # Prefetch is opportunistic.  The explicit path remains the
                 # correctness fallback and will surface/log backend failures.
@@ -176,6 +176,11 @@ class SpeculativeRanker:
                 self._pending = None
                 self._condition.notify_all()
         with self._inference_lock:
+            # A background pass may have finished while Space was waiting for
+            # the inference lock.  Re-check before doing the same model call.
+            cached = self._lookup(request)
+            if cached is not None:
+                return cached
             response = self._delegate.rank(request)
-        self._store(request, response)
-        return response
+            self._store(request, response)
+            return response
