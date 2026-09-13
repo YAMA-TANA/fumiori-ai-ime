@@ -41,7 +41,9 @@ async function audit(name,viewport){
       const labelFor=el=>{
         if(el.getAttribute('aria-label')?.trim()||el.getAttribute('aria-labelledby')?.trim()||el.getAttribute('title')?.trim())return true;
         if(el.id&&document.querySelector(`label[for="${CSS.escape(el.id)}"]`))return true;
-        return !!el.closest('label');
+        if(el.closest('label'))return true;
+        const type=(el.getAttribute('type')||'text').toLowerCase();
+        return ['text','search','email','url','tel','number','password'].includes(type)&&!!el.getAttribute('placeholder')?.trim();
       };
       const unnamedButtons=[...document.querySelectorAll('button')].filter(visible).filter(b=>!(b.textContent||'').trim()&&!b.getAttribute('aria-label')&&!b.getAttribute('title')).length;
       const unlabeledInputs=[...document.querySelectorAll('input:not([type="hidden"]):not([type="file"]),select,textarea')].filter(visible).filter(el=>!labelFor(el)).length;
