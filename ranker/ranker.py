@@ -30,10 +30,12 @@ try:  # When run as ``python -m ranker.ranker``.
     from .protocol import (MAX_LINE_BYTES, ProtocolError, loads_strict,
                            validate_request, validate_response)
     from .loading_ui import LoadingIndicator
+    from .speculative import SpeculativeRanker
 except ImportError:  # When run as ``python ranker/ranker.py``.
     from protocol import (MAX_LINE_BYTES, ProtocolError, loads_strict,
                           validate_request, validate_response)
     from loading_ui import LoadingIndicator
+    from speculative import SpeculativeRanker
 
 QwenReranker = None
 QwenDependencyError = RuntimeError
@@ -284,7 +286,7 @@ def process_line(line: bytes, ranker: Any) -> Optional[bytes]:
         if (not req_val["preceding_text"] and
                 not req_val["following_text"] and
                 req_val["inference_trigger"] != "explicit"):
-            # A legacy context-free interactive request has no information
+            # A context-free interactive/prefetch request has no information
             # with which to improve Mozc's dictionary order.  Explicit Mozc
             # conversion is allowed through because a resized compound can
             # still be judged by whole-word naturalness, and a restored split
@@ -591,11 +593,10 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         return 2
     if args.pipe:
         if args.backend in {"ruri", "onnx"}:
-            # A current Mozc process marks Space/Convert as explicit. Requests
-            # from older binaries have no marker and are treated as live input:
-            # return Mozc order immediately until the same request is stable
-            # for 500 ms, so typing never starts model inference.
-            ranker = InteractiveBurstGuard(ranker, settle_seconds=0.5)
+            # Typing-time requests only enqueue the latest speculative pass and
+            # return Mozc order immediately.  Space/Convert either reuses that
+            # cached result or performs the normal synchronous fallback.
+            ranker = SpeculativeRanker(ranker, settle_seconds=0.04)
         model = getattr(ranker, "model_path", args.model_name if args.backend != "rule" else "rule")
         status = RuntimeStatus(
             args.status_file, args.backend, str(model), normalize_windows_pipe_name(args.pipe)
