@@ -23,6 +23,7 @@ on:
       - 'tests/sqlite-transaction-smoke.mjs'
       - 'tests/stl-binary-smoke.mjs'
       - 'tests/audio-wav-smoke.mjs'
+      - 'tests/pixel-animation-smoke.mjs'
       - '.github/workflows/flagship-browser-smoke.yml'
   pull_request:
     paths:
@@ -45,6 +46,7 @@ on:
       - 'tests/sqlite-transaction-smoke.mjs'
       - 'tests/stl-binary-smoke.mjs'
       - 'tests/audio-wav-smoke.mjs'
+      - 'tests/pixel-animation-smoke.mjs'
       - '.github/workflows/flagship-browser-smoke.yml'
   workflow_dispatch:
 
@@ -85,6 +87,8 @@ jobs:
         run: node tests/stl-binary-smoke.mjs
       - name: Run audio WAV E2E
         run: node tests/audio-wav-smoke.mjs
+      - name: Run pixel animation E2E
+        run: node tests/pixel-animation-smoke.mjs
       - name: Stop static server
         if: always()
         run: kill "$(cat /tmp/marketing-http.pid)" 2>/dev/null || true
