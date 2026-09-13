@@ -12,6 +12,8 @@ try{
   const r=await page.goto(`${base}/pv-sites/image-shrink-jp/`,{waitUntil:'domcontentloaded',timeout:20000});if(!r?.ok())throw new Error(`HTTP ${r?.status()}`);
   for(const s of ['#fileInput','#batchQueue','#processAll','#downloadAll','#targetKb','#preview'])await page.waitForSelector(s);
   const multiple=await page.$eval('#fileInput',e=>e.multiple);if(!multiple)throw new Error('file input is not multiple');
+  await page.select('#languageSelect','en');await page.waitForFunction(()=>document.querySelector('.faq-list summary')?.textContent==='Which image formats are supported?'&&document.querySelector('.panel-title')?.textContent==='Batch image compression',{timeout:3000});
+  if(!/Batch Image Compressor/.test(await page.title()))throw new Error(`English title did not update: ${await page.title()}`);
   await page.evaluate(async()=>{const make=async(name,color)=>{const c=document.createElement('canvas');c.width=32;c.height=24;const x=c.getContext('2d');x.fillStyle=color;x.fillRect(0,0,c.width,c.height);x.fillStyle='#fff';x.fillRect(4,4,8,8);const blob=await new Promise(resolve=>c.toBlob(resolve,'image/png'));return new File([blob],name,{type:'image/png'})};const dt=new DataTransfer();dt.items.add(await make('one.png','#c33'));dt.items.add(await make('two.png','#36c'));const input=document.querySelector('#fileInput');input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}))});
   await page.waitForFunction(()=>document.querySelectorAll('#batchQueue .batch-item').length===2,{timeout:5000});
   await page.click('#processAll');
@@ -22,5 +24,5 @@ try{
   await page.waitForFunction(()=>window.__downloads?.some(x=>/\.zip$/i.test(x))&&window.__zipBlob,{timeout:10000});
   const zip=await page.evaluate(async()=>{const a=new Uint8Array(await window.__zipBlob.arrayBuffer());return{size:a.length,magic:[...a.slice(0,4)]}});if(zip.size<100||zip.magic.join(',')!=='80,75,3,4')throw new Error(`invalid ZIP: ${JSON.stringify(zip)}`);
   if(errors.length)throw new Error(errors.join('\n'));
-  console.log('PASS image batch compression + ZIP');
+  console.log('PASS image English UI + batch compression + ZIP');
 }finally{await page.close();await browser.close()}
