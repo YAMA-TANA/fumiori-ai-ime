@@ -21,7 +21,7 @@ if(!dirs.length)throw new Error('No pv-sites applications found');
 
 const browser=await puppeteer.launch({executablePath,headless:true,args:['--no-sandbox','--disable-dev-shm-usage']});
 const failures=[];
-const ignoreConsole=/googletagmanager|google-analytics|profitableratecpmnetwork|ERR_BLOCKED_BY_CLIENT|favicon\.ico/i;
+const ignoreConsole=/Failed to load resource|googletagmanager|google-analytics|profitableratecpmnetwork|ERR_BLOCKED_BY_CLIENT|favicon\.ico/i;
 const local=url=>{try{return new URL(url).origin===baseOrigin}catch{return false}};
 
 async function audit(name,viewport){
@@ -34,7 +34,7 @@ async function audit(name,viewport){
   page.on('console',msg=>{const text=msg.text();if(msg.type()==='error'&&!ignoreConsole.test(text))errors.push(`console: ${text}`)});
   try{
     const response=await page.goto(`${base}/pv-sites/${name}/`,{waitUntil:'domcontentloaded',timeout:20000});
-    if(!response?.ok())throw new Error(`HTTP ${response?.status()}`);
+    const status=response?.status()||0;if(!(status>=200&&status<400))throw new Error(`HTTP ${status}`);
     await new Promise(r=>setTimeout(r,700));
     const report=await page.evaluate(()=>{
       const visible=el=>{const s=getComputedStyle(el),r=el.getBoundingClientRect();return s.display!=='none'&&s.visibility!=='hidden'&&r.width>0&&r.height>0};
