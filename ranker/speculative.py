@@ -13,7 +13,10 @@ import time
 from collections import OrderedDict
 from typing import Any, Dict
 
-from .protocol import validate_request
+try:
+    from .protocol import validate_request
+except ImportError:
+    from protocol import validate_request
 
 
 class SpeculativeRanker:
