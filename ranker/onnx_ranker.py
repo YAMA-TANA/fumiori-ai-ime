@@ -160,7 +160,10 @@ class OnnxRuriReranker:
         }
 
     def _warmup(self) -> None:
-        warmup_count = 32
+        # Production reranking normally scores four Mozc surfaces.  Warming the
+        # same shape avoids compiling a much larger 32-row DirectML graph that
+        # the interactive path never uses.
+        warmup_count = 4
         query = "文書方針: 一般的な日本語文書。\n文脈に合う表記を選びなさい。"
         inputs = self._encode(
             [query] * warmup_count,
@@ -192,15 +195,22 @@ class OnnxRuriReranker:
             candidate_id = str(candidate.get("id", f"c{index + 1}"))
             all_candidates.append((index, candidate_id, word))
 
+        # The candidate document already contains the local context.  Repeating
+        # the same prefix/suffix inside every query roughly doubles the token
+        # work, so keep the query short and candidate-independent.
         query = (
             f"文書方針: {self.document_instruction}\n"
-            f"文脈「{prefix}____{suffix}」に最も適切な表記を選びなさい。"
+            f"読み「{reading}」の変換候補として、文脈に最も適切な表記を選びなさい。"
         )
+        encode_started = time.perf_counter()
         inputs = self._encode(
             [query] * len(all_candidates),
             [f"{prefix}{word}{suffix}" for _index, _candidate_id, word in all_candidates],
         )
+        encode_ms = (time.perf_counter() - encode_started) * 1000.0
+        inference_started = time.perf_counter()
         logits = np.asarray(self.session.run(["logits"], inputs)[0]).reshape(-1)
+        inference_ms = (time.perf_counter() - inference_started) * 1000.0
 
         scored: list[tuple[float, int, str]] = []
         evidence_scores: dict[str, float] = {}
@@ -325,7 +335,15 @@ class OnnxRuriReranker:
                 score_details.values(), key=lambda item: int(item["output_rank"])
             ),
         }
-        self.last_latency_ms = round((time.perf_counter() - started) * 1000.0, 2)
+        total_ms = (time.perf_counter() - started) * 1000.0
+        self.last_latency_ms = round(total_ms, 2)
+        self.last_timing = {
+            "encode_ms": round(encode_ms, 3),
+            "inference_ms": round(inference_ms, 3),
+            "postprocess_ms": round(max(0.0, total_ms - encode_ms - inference_ms), 3),
+            "total_ms": round(total_ms, 3),
+            "candidate_count": len(all_candidates),
+        }
         return {
             "request_id": request_id,
             "candidates": [
