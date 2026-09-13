@@ -12,6 +12,7 @@ on:
       - 'pv-sites/font-studio-lite/**'
       - 'pv-sites/image-shrink-jp/**'
       - 'pv-sites/gis-lite/**'
+      - 'pv-sites/stl-fixer/**'
       - 'pv-sites/voice-meter/**'
       - 'pv-sites/walk-air/**'
       - 'pv-sites/nature-pulse/**'
@@ -20,6 +21,7 @@ on:
       - 'tests/image-batch-smoke.mjs'
       - 'tests/gis-import-smoke.mjs'
       - 'tests/sqlite-transaction-smoke.mjs'
+      - 'tests/stl-binary-smoke.mjs'
       - '.github/workflows/flagship-browser-smoke.yml'
   pull_request:
     paths:
@@ -31,6 +33,7 @@ on:
       - 'pv-sites/font-studio-lite/**'
       - 'pv-sites/image-shrink-jp/**'
       - 'pv-sites/gis-lite/**'
+      - 'pv-sites/stl-fixer/**'
       - 'pv-sites/voice-meter/**'
       - 'pv-sites/walk-air/**'
       - 'pv-sites/nature-pulse/**'
@@ -39,6 +42,7 @@ on:
       - 'tests/image-batch-smoke.mjs'
       - 'tests/gis-import-smoke.mjs'
       - 'tests/sqlite-transaction-smoke.mjs'
+      - 'tests/stl-binary-smoke.mjs'
       - '.github/workflows/flagship-browser-smoke.yml'
   workflow_dispatch:
 
@@ -75,6 +79,8 @@ jobs:
         run: node tests/gis-import-smoke.mjs
       - name: Run SQLite transaction safety E2E
         run: node tests/sqlite-transaction-smoke.mjs
+      - name: Run binary STL E2E
+        run: node tests/stl-binary-smoke.mjs
       - name: Stop static server
         if: always()
         run: kill "$(cat /tmp/marketing-http.pid)" 2>/dev/null || true
