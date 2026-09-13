@@ -6,11 +6,13 @@ on:
     paths:
       - 'pv-sites/**'
       - 'sales-sites/**'
+      - 'scripts/validate-static-tools.mjs'
       - '.github/workflows/marketing-sites-check.yml'
   pull_request:
     paths:
       - 'pv-sites/**'
       - 'sales-sites/**'
+      - 'scripts/validate-static-tools.mjs'
       - '.github/workflows/marketing-sites-check.yml'
 
 permissions:
@@ -60,3 +62,5 @@ jobs:
               exit 1
             fi
           done < <(find pv-sites sales-sites -mindepth 1 -maxdepth 1 -type d -print0)
+      - name: Run static production quality gate
+        run: node scripts/validate-static-tools.mjs
