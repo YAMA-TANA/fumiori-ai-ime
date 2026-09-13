@@ -13,7 +13,7 @@ function mount(){const actions=document.querySelector('.query-actions');if(!acti
 let saveTimer=0;query.addEventListener('input',()=>{clearTimeout(saveTimer);saveTimer=setTimeout(()=>{try{localStorage.setItem(DRAFT_KEY,query.value)}catch{}},180)});
 let started=0;run.addEventListener('click',()=>{const sql=query.value.trim();if(sql)storeRecent(sql);started=performance.now()},{capture:true});
 new MutationObserver(()=>{if(started&&!run.disabled){const ms=Math.max(0,Math.round(performance.now()-started));started=0;const perf=$('#queryPerf');if(perf){perf.dataset.ms=String(ms);perf.textContent=`${t('elapsed')}: ${ms} ms`}}}).observe(run,{attributes:true,attributeFilter:['disabled']});
-document.addEventListener('keydown',e=>{if(!(e.ctrlKey||e.metaKey))return;if(e.key.toLowerCase()==='s'){e.preventDefault();if(!exportDb.disabled)exportDb.click()}else if(e.shiftKey&&e.key.toLowerCase()==='o'){e.preventDefault();$('#openSqlButton')?.click()}else if(e.shiftKey&&e.key.toLowerCase()==='s'){e.preventDefault();$('#saveSql')?.click()}},{capture:true});
+document.addEventListener('keydown',e=>{if(!(e.ctrlKey||e.metaKey))return;const key=e.key.toLowerCase();if(e.shiftKey&&key==='s'){e.preventDefault();$('#saveSql')?.click()}else if(e.shiftKey&&key==='o'){e.preventDefault();$('#openSqlButton')?.click()}else if(key==='s'){e.preventDefault();if(!exportDb.disabled)exportDb.click()}},{capture:true});
 window.addEventListener('beforeunload',e=>{const text=(state?.textContent||'').toLowerCase();if(/変更|modified|transaction|已修改|事务|변경|트랜잭션/.test(text)){e.preventDefault();e.returnValue=''}});
 $('#languageSelect')?.addEventListener('change',()=>setTimeout(relabel));
 mount();
