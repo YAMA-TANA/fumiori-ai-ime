@@ -4,20 +4,9 @@ on:
   push:
     branches: [marketing-sites]
     paths:
-      - 'pv-sites/pdf-workbench/**'
-      - 'pv-sites/pixel-lite/**'
-      - 'pv-sites/audio-master-lite/**'
-      - 'pv-sites/sqlite-lite/**'
-      - 'pv-sites/texture-lab/**'
-      - 'pv-sites/font-studio-lite/**'
-      - 'pv-sites/image-shrink-jp/**'
-      - 'pv-sites/gis-lite/**'
-      - 'pv-sites/stl-fixer/**'
-      - 'pv-sites/voice-meter/**'
-      - 'pv-sites/walk-air/**'
-      - 'pv-sites/nature-pulse/**'
-      - 'pv-sites/food-lens/**'
+      - 'pv-sites/**'
       - 'tests/marketing-smoke.mjs'
+      - 'tests/pv-all-smoke.mjs'
       - 'tests/image-batch-smoke.mjs'
       - 'tests/gis-import-smoke.mjs'
       - 'tests/sqlite-transaction-smoke.mjs'
@@ -27,20 +16,9 @@ on:
       - '.github/workflows/flagship-browser-smoke.yml'
   pull_request:
     paths:
-      - 'pv-sites/pdf-workbench/**'
-      - 'pv-sites/pixel-lite/**'
-      - 'pv-sites/audio-master-lite/**'
-      - 'pv-sites/sqlite-lite/**'
-      - 'pv-sites/texture-lab/**'
-      - 'pv-sites/font-studio-lite/**'
-      - 'pv-sites/image-shrink-jp/**'
-      - 'pv-sites/gis-lite/**'
-      - 'pv-sites/stl-fixer/**'
-      - 'pv-sites/voice-meter/**'
-      - 'pv-sites/walk-air/**'
-      - 'pv-sites/nature-pulse/**'
-      - 'pv-sites/food-lens/**'
+      - 'pv-sites/**'
       - 'tests/marketing-smoke.mjs'
+      - 'tests/pv-all-smoke.mjs'
       - 'tests/image-batch-smoke.mjs'
       - 'tests/gis-import-smoke.mjs'
       - 'tests/sqlite-transaction-smoke.mjs'
@@ -56,7 +34,7 @@ permissions:
 jobs:
   browser-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -77,6 +55,8 @@ jobs:
           exit 1
       - name: Run core Chromium smoke tests
         run: node tests/marketing-smoke.mjs
+      - name: Run all-tool production browser gate
+        run: node tests/pv-all-smoke.mjs
       - name: Run image batch E2E
         run: node tests/image-batch-smoke.mjs
       - name: Run GIS import/export E2E
