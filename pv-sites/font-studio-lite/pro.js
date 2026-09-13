@@ -1,0 +1,16 @@
+(()=>{'use strict';
+const $=s=>document.querySelector(s),SESSION='font-studio-session-v1',SLOT='font-studio-slot-',ids=['fontSelect','copy','fontSize','tracking','lineHeight','weight','bgColor','inkColor','align','pngScale'];
+const controls=()=>Object.fromEntries(ids.map(id=>[id,$('#'+id)?.value]).filter(([,v])=>v!=null));
+function apply(data){if(!data||typeof data!=='object')return;for(const[id,value]of Object.entries(data)){const el=$('#'+id);if(!el||value==null)continue;if(el.tagName==='SELECT'&&![...el.options].some(o=>o.value===String(value)))continue;el.value=String(value);el.dispatchEvent(new Event(el.tagName==='SELECT'?'change':'input',{bubbles:true}))}}
+function read(key){try{return JSON.parse(localStorage.getItem(key)||'null')}catch{return null}}
+function write(key,value){try{localStorage.setItem(key,JSON.stringify(value));return true}catch{return false}}
+function say(text){const s=$('#status');if(s)s.textContent=text}
+function hasSharedSettings(){const q=new URLSearchParams(location.search);return['font','copy','size','tracking','lineHeight','weight','bg','ink','align'].some(k=>q.has(k))}
+function saveSlot(name){write(SLOT+name,controls());say(`Snapshot ${name} saved`)}
+function loadSlot(name){const data=read(SLOT+name);if(data){apply(data);say(`Snapshot ${name} loaded`)}else say(`Snapshot ${name} is empty`)}
+function button(text,action,title){const b=document.createElement('button');b.type='button';b.className='button';b.textContent=text;b.title=title||text;b.onclick=action;return b}
+function mount(){const row=document.querySelector('.export-row');if(!row||$('#fontSnapshotTools'))return;const group=document.createElement('div');group.id='fontSnapshotTools';group.className='font-snapshot-tools';group.setAttribute('aria-label','Specimen A/B snapshots');group.append(button('Save A',()=>saveSlot('A'),'Save current specimen settings to A'),button('Load A',()=>loadSlot('A'),'Load specimen settings A'),button('Save B',()=>saveSlot('B'),'Save current specimen settings to B'),button('Load B',()=>loadSlot('B'),'Load specimen settings B'));row.append(group);const style=document.createElement('style');style.textContent='.font-snapshot-tools{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}.font-snapshot-tools .button{font-size:9px;padding:7px 9px}@media(max-width:700px){.font-snapshot-tools{width:100%;margin-left:0}.font-snapshot-tools .button{flex:1}}';document.head.append(style)}
+let timer=0;function autosave(){clearTimeout(timer);timer=setTimeout(()=>write(SESSION,controls()),180)}
+function init(){mount();for(const id of ids){const el=$('#'+id);if(el)el.addEventListener('input',autosave);if(el?.tagName==='SELECT')el.addEventListener('change',autosave)}if(!hasSharedSettings()){const data=read(SESSION);if(data){apply(data);say('Previous specimen settings restored')}}document.addEventListener('keydown',e=>{if(!e.altKey)return;if(e.key==='1'){e.preventDefault();loadSlot('A')}else if(e.key==='2'){e.preventDefault();loadSlot('B')}else if(e.shiftKey&&e.key==='1'){e.preventDefault();saveSlot('A')}else if(e.shiftKey&&e.key==='2'){e.preventDefault();saveSlot('B')}})}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
