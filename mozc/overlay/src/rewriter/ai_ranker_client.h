@@ -8,8 +8,7 @@ namespace mozc {
 namespace ai_ranker {
 
 // Explicit conversion may need a full CPU inference pass.  Typing-time
-// realtime conversions skip AiRewriter entirely, so this budget is only paid
-// after the user explicitly requests conversion (normally with Space).
+// prefetch requests only enqueue work and return immediately.
 constexpr int kDefaultTimeoutMs = 2000;
 
 // A request candidate is deliberately a copy of Mozc's existing value.  The
@@ -47,7 +46,23 @@ class Client {
             const std::vector<CandidateInput>& candidates, int timeout_ms,
             std::vector<RankedCandidate>* ranked) const;
 
+  // Queue a typing-time speculative pass.  The server acknowledges immediately
+  // with Mozc order while neural inference continues in its background worker.
+  bool Prefetch(const std::string& preceding_text,
+                const std::string& following_text,
+                const std::string& reading,
+                const std::vector<CandidateInput>& candidates,
+                int timeout_ms) const;
+
  private:
+  bool Request(const char* trigger,
+               const std::string& preceding_text,
+               const std::string& following_text,
+               const std::string& reading,
+               const std::vector<CandidateInput>& candidates,
+               int timeout_ms,
+               std::vector<RankedCandidate>* ranked) const;
+
   std::wstring pipe_name_;
 };
 

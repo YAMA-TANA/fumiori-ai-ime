@@ -40,7 +40,7 @@ DEFAULT_SETTINGS: dict[str, Any] = {
     # deliberately false so installation never consumes AI memory by default.
     "ai_autostart": False,
     "context_enabled": True,
-    "context_chars": 128,
+    "context_chars": 64,
     "document_domain": "general",
     "custom_instruction": "",
     "lexical_grounding": True,

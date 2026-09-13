@@ -236,8 +236,8 @@ bool Client::Rank(const std::string& preceding_text, const std::string& reading,
                   const std::vector<CandidateInput>& candidates,
                   int timeout_ms,
                   std::vector<RankedCandidate>* ranked) const {
-  return Rank(preceding_text, std::string(), reading, candidates, timeout_ms,
-              ranked);
+  return Request("explicit", preceding_text, std::string(), reading, candidates,
+                 timeout_ms, ranked);
 }
 
 bool Client::Rank(const std::string& preceding_text,
@@ -246,16 +246,38 @@ bool Client::Rank(const std::string& preceding_text,
                   const std::vector<CandidateInput>& candidates,
                   int timeout_ms,
                   std::vector<RankedCandidate>* ranked) const {
-  if (ranked == nullptr || candidates.empty() ||
-      candidates.size() > kMaxCandidates ||
-      timeout_ms <= 0 || preceding_text.size() > 32768 ||
-      following_text.size() > 32768 || reading.size() > 512) {
+  return Request("explicit", preceding_text, following_text, reading, candidates,
+                 timeout_ms, ranked);
+}
+
+bool Client::Prefetch(const std::string& preceding_text,
+                      const std::string& following_text,
+                      const std::string& reading,
+                      const std::vector<CandidateInput>& candidates,
+                      int timeout_ms) const {
+  std::vector<RankedCandidate> ignored;
+  return Request("prefetch", preceding_text, following_text, reading, candidates,
+                 timeout_ms, &ignored);
+}
+
+bool Client::Request(const char* trigger,
+                     const std::string& preceding_text,
+                     const std::string& following_text,
+                     const std::string& reading,
+                     const std::vector<CandidateInput>& candidates,
+                     int timeout_ms,
+                     std::vector<RankedCandidate>* ranked) const {
+  const std::string trigger_value = trigger == nullptr ? "" : trigger;
+  if ((trigger_value != "explicit" && trigger_value != "prefetch") ||
+      ranked == nullptr || candidates.empty() ||
+      candidates.size() > kMaxCandidates || timeout_ms <= 0 ||
+      preceding_text.size() > 32768 || following_text.size() > 32768 ||
+      reading.size() > 512) {
     return false;
   }
   // Keep a defensive upper bound for callers, but do not silently truncate
-  // AiRewriter's explicit-conversion budget.  The packaged CPU model commonly
-  // needs more than 500 ms, and truncating it here discarded a valid AI result
-  // after the server had already started inference.
+  // AiRewriter's explicit-conversion budget.  Prefetch callers pass a tiny
+  // acknowledgement budget because the server returns Mozc order immediately.
   constexpr int kMaxTimeoutMs = 3000;
   const int budget_ms = std::min(timeout_ms, kMaxTimeoutMs);
   const std::string request_id = NextRequestId();
@@ -263,7 +285,7 @@ bool Client::Rank(const std::string& preceding_text,
   std::string escaped;
   if (!EscapeJson(preceding_text, &escaped)) return false;
   json << "{\"request_id\":\"" << request_id
-       << "\",\"inference_trigger\":\"explicit"
+       << "\",\"inference_trigger\":\"" << trigger_value
        << "\",\"preceding_text\":\"" << escaped
        << "\",\"following_text\":";
   if (!EscapeJson(following_text, &escaped)) return false;
@@ -322,6 +344,17 @@ bool Client::Rank(const std::string&, const std::string&,
 bool Client::Rank(const std::string&, const std::string&,
                   const std::string&, const std::vector<CandidateInput>&, int,
                   std::vector<RankedCandidate>*) const {
+  return false;
+}
+bool Client::Prefetch(const std::string&, const std::string&,
+                      const std::string&,
+                      const std::vector<CandidateInput>&, int) const {
+  return false;
+}
+bool Client::Request(const char*, const std::string&, const std::string&,
+                     const std::string&,
+                     const std::vector<CandidateInput>&, int,
+                     std::vector<RankedCandidate>*) const {
   return false;
 }
 }  // namespace ai_ranker

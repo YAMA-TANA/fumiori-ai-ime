@@ -222,7 +222,7 @@ TEST(AiRewriterTest, RealtimeConversionSkipsAiRanker) {
   EXPECT_EQ(segments.segment(0).candidate(1).value, "鼻");
 }
 
-TEST(AiRewriterTest, PredictorRealtimeMarkerSkipsAiRanker) {
+TEST(AiRewriterTest, PredictorRealtimeMarkerEnablesPrefetchPath) {
   ConversionRequest::Options options;
   options.request_type = ConversionRequest::CONVERSION;
   options.used_in_predictor_realtime_conversion = true;
@@ -230,7 +230,7 @@ TEST(AiRewriterTest, PredictorRealtimeMarkerSkipsAiRanker) {
       ConversionRequestBuilder().SetOptions(std::move(options)).Build();
 
   AiRewriter rewriter(L"missing-ai-ime-pipe");
-  EXPECT_EQ(rewriter.capability(request), RewriterInterface::NOT_AVAILABLE);
+  EXPECT_EQ(rewriter.capability(request), RewriterInterface::CONVERSION);
 
   Segments segments;
   Segment* segment = segments.add_segment();
@@ -407,7 +407,7 @@ TEST(AiRewriterTest, RankerWinnerMovesToCandidateZero) {
             0);
 }
 
-TEST(AiRewriterTest, SendsAtMostEightDistinctSurfacesToRanker) {
+TEST(AiRewriterTest, SendsAtMostFourDistinctSurfacesToRanker) {
   const std::wstring pipe_name =
       L"\\\\.\\pipe\\yamatana_ai_rewriter_candidate_limit_test";
   FakeRankerServer server(pipe_name, "c8");
@@ -430,7 +430,7 @@ TEST(AiRewriterTest, SendsAtMostEightDistinctSurfacesToRanker) {
   EXPECT_EQ(segments.segment(0).candidate(0).value, "候補0");
   const std::vector<size_t> counts = server.candidate_counts();
   ASSERT_EQ(counts.size(), 1);
-  EXPECT_EQ(counts[0], 8);
+  EXPECT_EQ(counts[0], 4);
 }
 
 TEST(AiRewriterTest, DuplicateSurfacesAreNotSentAsSeparateChoices) {

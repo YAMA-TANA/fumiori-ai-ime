@@ -30,10 +30,11 @@ using Clock = std::chrono::steady_clock;
 
 constexpr size_t kBoundaryDictionaryLimit = 6;
 constexpr size_t kBoundaryRepairLimit = 12;
-constexpr size_t kAiCandidateSurfaceLimit = 8;
-constexpr size_t kSupplementalCandidateSurfaceLimit = 8;
+constexpr size_t kAiCandidateSurfaceLimit = 4;
+constexpr size_t kSupplementalCandidateSurfaceLimit = 2;
 constexpr size_t kMinInternalPhraseContextChars = 4;
 constexpr int kBoundaryProbeTimeoutMs = 700;
+constexpr int kPrefetchAckTimeoutMs = 5;
 constexpr double kBoundaryRepairMargin = 0.60;
 
 struct SurfaceOption {
@@ -473,8 +474,12 @@ bool ApplySelectedPermutation(
 }  // namespace
 
 int AiRewriter::capability(const ConversionRequest& request) const {
-  if (request.options().skip_slow_rewriters ||
-      request.options().used_in_predictor_realtime_conversion) {
+  if (request.options().used_in_predictor_realtime_conversion) {
+    // Realtime conversion is used only to warm the speculative cache.  Rewrite
+    // never applies an AI permutation on this path, so typing remains instant.
+    return RewriterInterface::CONVERSION;
+  }
+  if (request.options().skip_slow_rewriters) {
     return RewriterInterface::NOT_AVAILABLE;
   }
   return RewriterInterface::CONVERSION;
@@ -627,8 +632,9 @@ AiRewriter::CheckResizeSegmentsRequest(const ConversionRequest& request,
 
 bool AiRewriter::Rewrite(const ConversionRequest& request,
                          Segments* segments) const {
-  if (request.options().skip_slow_rewriters ||
-      request.options().used_in_predictor_realtime_conversion) {
+  const bool realtime_prefetch =
+      request.options().used_in_predictor_realtime_conversion;
+  if (request.options().skip_slow_rewriters && !realtime_prefetch) {
     return false;
   }
   if (segments == nullptr || segments->conversion_segments_size() == 0) {
@@ -667,6 +673,44 @@ bool AiRewriter::Rewrite(const ConversionRequest& request,
     return false;
   }
 
+  if (realtime_prefetch) {
+    // Realtime conversion is latency-sensitive: enqueue only the nearest
+    // rerankable segment and never modify prediction candidates.  The Python
+    // ranker returns Mozc order immediately, then scores the latest request on
+    // its background worker for a later Space/Convert cache hit.
+    ai_ranker::Client client(pipe_name_);
+    for (size_t reverse = segments->conversion_segments_size(); reverse > 0;
+         --reverse) {
+      const size_t index = reverse - 1;
+      const converter::Segment& segment = segments->conversion_segment(index);
+      if (!IsRerankableSegment(segment) || segment.candidates_size() < 2) {
+        continue;
+      }
+      const std::vector<size_t> selected_indices =
+          SelectDistinctCandidateSurfaces(segment);
+      if (selected_indices.size() < 2) continue;
+
+      std::vector<ai_ranker::CandidateInput> input;
+      input.reserve(selected_indices.size());
+      for (size_t candidate_index : selected_indices) {
+        const converter::Candidate& candidate =
+            segment.candidate(candidate_index);
+        input.push_back({"c" + std::to_string(candidate_index), candidate.value,
+                         static_cast<int>(input.size() + 1)});
+      }
+      const std::string segment_prefix =
+          ContextBeforeSegment(*segments, index, preceding_text);
+      const std::string following_text =
+          ContextAfterSegment(*segments, index, trailing_text);
+      client.Prefetch(
+          segment_prefix, following_text,
+          std::string(segment.key().data(), segment.key().size()), input,
+          kPrefetchAckTimeoutMs);
+      break;
+    }
+    return false;
+  }
+
   const Clock::time_point deadline =
       Clock::now() + std::chrono::milliseconds(ai_ranker::kDefaultTimeoutMs);
   ai_ranker::Client client(pipe_name_);
@@ -696,9 +740,9 @@ bool AiRewriter::Rewrite(const ConversionRequest& request,
     if (limit < 2) continue;
     std::vector<ai_ranker::CandidateInput> input;
     input.reserve(limit);
-    for (size_t index : selected_indices) {
-      const converter::Candidate& candidate = segment->candidate(index);
-      input.push_back({"c" + std::to_string(index), candidate.value,
+    for (size_t candidate_index : selected_indices) {
+      const converter::Candidate& candidate = segment->candidate(candidate_index);
+      input.push_back({"c" + std::to_string(candidate_index), candidate.value,
                        static_cast<int>(input.size() + 1)});
     }
 

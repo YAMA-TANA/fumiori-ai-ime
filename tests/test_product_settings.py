@@ -45,7 +45,7 @@ class ProductSettingsTests(unittest.TestCase):
             settings = load_settings(Path(temp) / "missing.json")
         self.assertFalse(settings["ai_autostart"])
         self.assertTrue(settings["context_enabled"])
-        self.assertEqual(settings["context_chars"], 128)
+        self.assertEqual(settings["context_chars"], 64)
         self.assertEqual(settings["compute_mode"], "auto")
 
     def test_invalid_values_are_normalized(self) -> None:
