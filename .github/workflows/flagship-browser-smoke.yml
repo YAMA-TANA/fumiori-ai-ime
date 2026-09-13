@@ -10,11 +10,13 @@ on:
       - 'pv-sites/sqlite-lite/**'
       - 'pv-sites/texture-lab/**'
       - 'pv-sites/font-studio-lite/**'
+      - 'pv-sites/image-shrink-jp/**'
       - 'pv-sites/voice-meter/**'
       - 'pv-sites/walk-air/**'
       - 'pv-sites/nature-pulse/**'
       - 'pv-sites/food-lens/**'
       - 'tests/marketing-smoke.mjs'
+      - 'tests/image-batch-smoke.mjs'
       - '.github/workflows/flagship-browser-smoke.yml'
   pull_request:
     paths:
@@ -24,11 +26,13 @@ on:
       - 'pv-sites/sqlite-lite/**'
       - 'pv-sites/texture-lab/**'
       - 'pv-sites/font-studio-lite/**'
+      - 'pv-sites/image-shrink-jp/**'
       - 'pv-sites/voice-meter/**'
       - 'pv-sites/walk-air/**'
       - 'pv-sites/nature-pulse/**'
       - 'pv-sites/food-lens/**'
       - 'tests/marketing-smoke.mjs'
+      - 'tests/image-batch-smoke.mjs'
       - '.github/workflows/flagship-browser-smoke.yml'
   workflow_dispatch:
 
@@ -57,8 +61,10 @@ jobs:
           done
           cat /tmp/marketing-http.log
           exit 1
-      - name: Run Chromium smoke tests
+      - name: Run core Chromium smoke tests
         run: node tests/marketing-smoke.mjs
+      - name: Run image batch E2E
+        run: node tests/image-batch-smoke.mjs
       - name: Stop static server
         if: always()
         run: kill "$(cat /tmp/marketing-http.pid)" 2>/dev/null || true
