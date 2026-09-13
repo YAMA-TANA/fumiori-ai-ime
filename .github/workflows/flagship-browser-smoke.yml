@@ -11,12 +11,14 @@ on:
       - 'pv-sites/texture-lab/**'
       - 'pv-sites/font-studio-lite/**'
       - 'pv-sites/image-shrink-jp/**'
+      - 'pv-sites/gis-lite/**'
       - 'pv-sites/voice-meter/**'
       - 'pv-sites/walk-air/**'
       - 'pv-sites/nature-pulse/**'
       - 'pv-sites/food-lens/**'
       - 'tests/marketing-smoke.mjs'
       - 'tests/image-batch-smoke.mjs'
+      - 'tests/gis-import-smoke.mjs'
       - '.github/workflows/flagship-browser-smoke.yml'
   pull_request:
     paths:
@@ -27,12 +29,14 @@ on:
       - 'pv-sites/texture-lab/**'
       - 'pv-sites/font-studio-lite/**'
       - 'pv-sites/image-shrink-jp/**'
+      - 'pv-sites/gis-lite/**'
       - 'pv-sites/voice-meter/**'
       - 'pv-sites/walk-air/**'
       - 'pv-sites/nature-pulse/**'
       - 'pv-sites/food-lens/**'
       - 'tests/marketing-smoke.mjs'
       - 'tests/image-batch-smoke.mjs'
+      - 'tests/gis-import-smoke.mjs'
       - '.github/workflows/flagship-browser-smoke.yml'
   workflow_dispatch:
 
@@ -65,6 +69,8 @@ jobs:
         run: node tests/marketing-smoke.mjs
       - name: Run image batch E2E
         run: node tests/image-batch-smoke.mjs
+      - name: Run GIS import/export E2E
+        run: node tests/gis-import-smoke.mjs
       - name: Stop static server
         if: always()
         run: kill "$(cat /tmp/marketing-http.pid)" 2>/dev/null || true
