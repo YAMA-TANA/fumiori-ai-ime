@@ -4,12 +4,16 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-const root = path.resolve(process.cwd(), 'pv-sites');
+const roots = ['pv-sites', 'sales-sites']
+  .map(name => path.resolve(process.cwd(), name))
+  .filter(dir => fs.existsSync(dir));
 const errors = [];
 const warnings = [];
+const canonicalOwners = new Map();
 let htmlCount = 0;
 let jsCount = 0;
 let inlineCount = 0;
+let siteCount = 0;
 
 function walk(dir) {
   const out = [];
@@ -57,6 +61,84 @@ function checkLocalRef(file, value, kind) {
   if (!fs.existsSync(target)) fail(file, `missing local ${kind}: ${value}`);
 }
 
+function metaValue(source, key, attrName = 'name') {
+  for (const m of source.matchAll(/<meta\b[^>]*>/gi)) {
+    const a = attrs(m[0]);
+    if ((a.get(attrName) || '').toLowerCase() === key.toLowerCase()) return a.get('content') || '';
+  }
+  return '';
+}
+
+function linkValue(source, relation) {
+  for (const m of source.matchAll(/<link\b[^>]*>/gi)) {
+    const a = attrs(m[0]);
+    const rels = (a.get('rel') || '').toLowerCase().split(/\s+/);
+    if (rels.includes(relation.toLowerCase())) return a.get('href') || '';
+  }
+  return '';
+}
+
+function visibleTextLength(html) {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&[a-z0-9#]+;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim().length;
+}
+
+function checkSeoEntrypoint(file, source) {
+  const title = source.match(/<title>([^<]+)<\/title>/i)?.[1]?.trim() || '';
+  const description = metaValue(source, 'description');
+  const robots = metaValue(source, 'robots');
+  const canonical = linkValue(source, 'canonical');
+  const ogTitle = metaValue(source, 'og:title', 'property');
+  const ogDescription = metaValue(source, 'og:description', 'property');
+  const ogUrl = metaValue(source, 'og:url', 'property');
+  const h1Count = [...source.matchAll(/<h1\b/gi)].length;
+  const jsonLdCount = [...source.matchAll(/<script\b[^>]*type=["']application\/ld\+json["'][^>]*>/gi)].length;
+  const bodyChars = visibleTextLength(source);
+
+  if (title.length < 12) warn(file, `title is unusually short (${title.length} chars)`);
+  if (title.length > 78) warn(file, `title may truncate in search results (${title.length} chars)`);
+  if (description.length < 55) warn(file, `meta description is short (${description.length} chars)`);
+  if (description.length > 190) warn(file, `meta description is long (${description.length} chars)`);
+  if (!robots.toLowerCase().includes('index') || !robots.toLowerCase().includes('follow')) fail(file, 'robots meta must include index,follow');
+  if (!/^https:\/\//i.test(canonical)) fail(file, 'canonical must be an absolute HTTPS URL');
+  if (canonical) {
+    const other = canonicalOwners.get(canonical);
+    if (other && other !== rel(file)) fail(file, `duplicate canonical also used by ${other}`);
+    canonicalOwners.set(canonical, rel(file));
+  }
+  if (h1Count !== 1) fail(file, `expected exactly one h1, found ${h1Count}`);
+  if (!ogTitle) fail(file, 'missing og:title');
+  if (!ogDescription) fail(file, 'missing og:description');
+  if (!ogUrl) fail(file, 'missing og:url');
+  if (canonical && ogUrl && canonical !== ogUrl) fail(file, `og:url must match canonical (${canonical})`);
+  if (jsonLdCount === 0) fail(file, 'missing JSON-LD structured data');
+  if (bodyChars < 450) warn(file, `thin visible content (${bodyChars} characters)`);
+
+  const dir = path.dirname(file);
+  const robotsFile = path.join(dir, 'robots.txt');
+  const sitemapFile = path.join(dir, 'sitemap.xml');
+  const llmsFile = path.join(dir, 'llms.txt');
+  if (!fs.existsSync(robotsFile)) fail(file, 'missing robots.txt');
+  else {
+    const r = fs.readFileSync(robotsFile, 'utf8');
+    if (!/^User-agent:\s*\*/im.test(r)) fail(robotsFile, 'missing User-agent: *');
+    if (!/^Allow:\s*\//im.test(r)) fail(robotsFile, 'missing Allow: /');
+    if (!/^Sitemap:\s*https:\/\//im.test(r)) fail(robotsFile, 'missing absolute Sitemap URL');
+  }
+  if (!fs.existsSync(sitemapFile)) fail(file, 'missing sitemap.xml');
+  else {
+    const map = fs.readFileSync(sitemapFile, 'utf8');
+    if (canonical && !map.includes(`<loc>${canonical}</loc>`)) fail(sitemapFile, `sitemap does not contain canonical ${canonical}`);
+    if (!/<lastmod>\d{4}-\d{2}-\d{2}<\/lastmod>/i.test(map)) fail(sitemapFile, 'sitemap URLs should include lastmod');
+  }
+  if (!fs.existsSync(llmsFile)) warn(file, 'missing llms.txt discovery summary');
+}
+
 function checkHtml(file) {
   htmlCount++;
   const s = fs.readFileSync(file, 'utf8');
@@ -97,20 +179,27 @@ function checkHtml(file) {
   }
 
   for (const m of s.matchAll(/\son[a-z]+\s*=/gi)) warn(file, `inline event handler ${m[0].trim()} reduces CSP hardening options`);
+
+  if (path.basename(file).toLowerCase() === 'index.html' && roots.some(root => path.dirname(file) !== root)) {
+    siteCount++;
+    checkSeoEntrypoint(file, s);
+  }
 }
 
-if (!fs.existsSync(root)) {
-  console.error('pv-sites directory not found');
+if (!roots.length) {
+  console.error('No marketing site roots found');
   process.exit(2);
 }
 
-const files = walk(root);
-for (const file of files) {
-  if (file.endsWith('.js')) checkJs(file);
-  else if (file.endsWith('.html')) checkHtml(file);
+for (const root of roots) {
+  const files = walk(root);
+  for (const file of files) {
+    if (file.endsWith('.js')) checkJs(file);
+    else if (file.endsWith('.html')) checkHtml(file);
+  }
 }
 
-console.log(`Validated ${htmlCount} HTML files, ${jsCount} JavaScript blocks/files.`);
+console.log(`Validated ${siteCount} marketing sites, ${htmlCount} HTML files, ${jsCount} JavaScript blocks/files.`);
 if (warnings.length) {
   console.log(`\nWarnings (${warnings.length}):`);
   for (const w of warnings) console.log(`  - ${w}`);
@@ -120,4 +209,4 @@ if (errors.length) {
   for (const e of errors) console.error(`  - ${e}`);
   process.exit(1);
 }
-console.log('\nStatic tool quality gate passed.');
+console.log('\nStatic marketing + SEO quality gate passed.');
