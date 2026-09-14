@@ -3,14 +3,47 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>文字数カウント｜原稿用紙・レポート文字数をすぐ確認</title>
-  <meta name="description" content="文章を貼り付けるだけで、文字数・空白を除いた文字数・行数・原稿用紙換算を確認できる無料ツールです。">
+  <title>文字数カウント｜空白なし・原稿用紙400字・行数を無料計算</title>
+  <meta name="description" content="文章を貼り付けるだけで、文字数、空白・改行を除いた文字数、行数、400字詰め原稿用紙の枚数をすぐ確認できる無料文字数カウンター。レポート、作文、応募文、SNS投稿の文字数確認に。">
+  <meta name="robots" content="index,follow,max-image-preview:large">
   <meta name="theme-color" content="#f6f1e8">
   <link rel="canonical" href="https://nihongo-counter.pages.dev/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="styles.css">
-  <!-- Google tag (gtag.js) -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ja_JP">
+  <meta property="og:site_name" content="日本語ツール帖">
+  <meta property="og:title" content="文字数カウント｜空白なし・原稿用紙400字・行数を無料計算">
+  <meta property="og:description" content="レポート・作文・応募文の文字数をその場で確認。空白なし文字数、行数、400字詰め原稿用紙換算にも対応。">
+  <meta property="og:url" content="https://nihongo-counter.pages.dev/">
+  <meta name="twitter:card" content="summary">
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"WebApplication",
+    "name":"文字数カウント｜日本語ツール帖",
+    "url":"https://nihongo-counter.pages.dev/",
+    "description":"日本語文章の文字数、空白を除いた文字数、行数、400字詰め原稿用紙換算を確認する無料ブラウザツール。",
+    "applicationCategory":"UtilitiesApplication",
+    "operatingSystem":"WebBrowser",
+    "isAccessibleForFree":true,
+    "inLanguage":"ja",
+    "featureList":["文字数カウント","空白と改行を除いた文字数","行数カウント","400字詰め原稿用紙換算","文章コピー","ブラウザ内処理"]
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"FAQPage",
+    "mainEntity":[
+      {"@type":"Question","name":"空白を除いた文字数も数えられますか？","acceptedAnswer":{"@type":"Answer","text":"はい。入力そのままの文字数に加え、スペースと改行を除いた文字数も同時に表示します。"}},
+      {"@type":"Question","name":"原稿用紙は何文字で換算しますか？","acceptedAnswer":{"@type":"Answer","text":"400字詰め原稿用紙を基準に、空白を除いた文字数から必要枚数の目安を計算します。"}},
+      {"@type":"Question","name":"入力した文章はサーバーへ送信されますか？","acceptedAnswer":{"@type":"Answer","text":"いいえ。このページでは文字数計算をブラウザ内で行い、入力した文章をサーバーへ送信しません。"}},
+      {"@type":"Question","name":"スマートフォンでも使えますか？","acceptedAnswer":{"@type":"Answer","text":"はい。スマートフォンのブラウザでも利用でき、文章を貼り付けると自動で文字数を計算します。"}}
+    ]
+  }
+  </script>
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-YZ8R7GTWQR"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -18,16 +51,16 @@
     gtag('js', new Date());
     gtag('config', 'G-YZ8R7GTWQR');
   </script>
-<meta name="robots" content="index,follow"><meta property="og:type" content="website"><meta property="og:title" content="文字数カウント｜原稿用紙・レポート文字数をすぐ確認"><meta property="og:description" content="Free browser tool: nihongo-counter"><meta property="og:url" content="https://nihongo-counter.pages.dev/"><meta name="twitter:card" content="summary"><script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"文字数カウント｜原稿用紙・レポート文字数をすぐ確認","url":"https://nihongo-counter.pages.dev/","description":"Free browser tool: nihongo-counter","applicationCategory":"UtilitiesApplication","operatingSystem":"WebBrowser","inLanguage":["ja","en","zh","ko"]}</script></head>
+</head>
 <body>
-  <header class="site-header shell"><a class="brand" href="./"><span class="brand-mark">数</span><span>日本語ツール帖</span></a><nav class="nav-links" aria-label="メインナビゲーション"><a href="#tool">カウント</a><a href="#guide">使い方</a><a class="nav-cta" href="#tool">無料で使う</a></nav><label class="language-select"><span aria-hidden="true">文</span><select id="languageSelect" aria-label="言語を選択"><option value="ja">日本語</option><option value="en">English</option><option value="zh">中文</option><option value="ko">한국어</option></select></label></header>
+  <header class="site-header shell"><a class="brand" href="./"><span class="brand-mark">数</span><span>日本語ツール帖</span></a><nav class="nav-links" aria-label="メインナビゲーション"><a href="#tool">文字数カウント</a><a href="#guide">数え方</a><a href="#faq">FAQ</a><a class="nav-cta" href="#tool">無料で使う</a></nav><label class="language-select"><span aria-hidden="true">文</span><select id="languageSelect" aria-label="言語を選択"><option value="ja">日本語</option><option value="en">English</option><option value="zh">中文</option><option value="ko">한국어</option></select></label></header>
   <main>
-    <section class="tool-hero shell" id="tool"><div class="intro"><p class="eyebrow">文章ツール / 無料</p><h1>文字数を、<br><span>迷わず確認。</span></h1><p class="lede">レポート、作文、応募文、SNS投稿。文章を貼り付けるだけで、必要な数字がその場で分かります。</p></div><div class="counter-panel"><div class="panel-head"><span>文字数カウント</span><span class="local-badge">ブラウザ内処理</span></div><textarea id="textInput" placeholder="ここに文章を貼り付けてください" aria-label="文字数を数える文章">文章を貼り付けると、文字数を自動で数えます。</textarea><div class="stats" aria-live="polite"><div><strong id="countAll">0</strong><span>文字</span></div><div><strong id="countNoSpace">0</strong><span>空白なし</span></div><div><strong id="countLines">0</strong><span>行</span></div><div><strong id="countPages">0</strong><span>原稿用紙</span></div></div><div class="panel-actions"><button id="clearButton" class="button button-ghost" type="button">クリア</button><button id="copyButton" class="button button-primary" type="button">文章をコピー</button></div><p id="status" class="status" role="status">入力内容はこのブラウザ内だけで処理します。</p></div></section>
-    <section class="quick-links shell"><span class="quick-label">よく使う計算</span><a href="#guide">原稿用紙400字換算</a><a href="#guide">空白を除いた文字数</a><a href="#guide">改行を含む行数</a></section>
-    <section class="guide shell" id="guide"><div class="guide-intro"><p class="eyebrow">HOW TO READ THE NUMBERS</p><h2>用途に合わせて、<br>見る数字を選ぶ。</h2></div><div class="guide-grid"><article><span>01</span><h3>文字数</h3><p>入力した文章をそのまま数えます。空白や改行も1文字として扱います。</p></article><article><span>02</span><h3>空白なし</h3><p>スペースと改行を除いて数えます。レポートや応募フォームの目安に便利です。</p></article><article><span>03</span><h3>原稿用紙</h3><p>空白を除いた文字数を400で割り、必要な枚数を目安として表示します。</p></article></div></section>
-    <section class="faq shell"><div><p class="eyebrow">よくある質問</p><h2>短く、正確に。</h2></div><div class="faq-list"><details open><summary>入力した文章は保存されますか？</summary><p>このページでは入力内容をサーバーへ送信せず、ブラウザ内でカウントしています。ページを閉じると入力内容は残りません。</p></details><details><summary>原稿用紙は何文字で計算しますか？</summary><p>400字詰め原稿用紙を基準に、空白を除いた文字数から目安を計算しています。</p></details><details><summary>スマートフォンでも使えますか？</summary><p>スマートフォンのブラウザでも使えます。文章をコピーして貼り付けてください。</p></details></div></section>
+    <section class="tool-hero shell" id="tool"><div class="intro"><p class="eyebrow">文字数カウンター / 無料</p><h1>文字数を、<br><span>迷わず確認。</span></h1><p class="lede">レポート、作文、志望理由、応募文、SNS投稿。文章を貼り付けるだけで、文字数・空白なし文字数・行数・400字詰め原稿用紙換算をその場で確認できます。</p></div><div class="counter-panel"><div class="panel-head"><span>文字数カウント</span><span class="local-badge">ブラウザ内処理</span></div><textarea id="textInput" placeholder="ここに文章を貼り付けてください" aria-label="文字数を数える文章">文章を貼り付けると、文字数を自動で数えます。</textarea><div class="stats" aria-live="polite"><div><strong id="countAll">0</strong><span>文字</span></div><div><strong id="countNoSpace">0</strong><span>空白なし</span></div><div><strong id="countLines">0</strong><span>行</span></div><div><strong id="countPages">0</strong><span>原稿用紙</span></div></div><div class="panel-actions"><button id="clearButton" class="button button-ghost" type="button">クリア</button><button id="copyButton" class="button button-primary" type="button">文章をコピー</button></div><p id="status" class="status" role="status">入力内容はこのブラウザ内だけで処理します。</p></div></section>
+    <section class="quick-links shell"><span class="quick-label">よく使う計算</span><a href="#guide">400字詰め原稿用紙換算</a><a href="#guide">空白・改行を除いた文字数</a><a href="#guide">行数カウント</a></section>
+    <section class="guide shell" id="guide"><div class="guide-intro"><p class="eyebrow">HOW TO READ THE NUMBERS</p><h2>用途に合わせて、<br>見る数字を選ぶ。</h2></div><div class="guide-grid"><article><span>01</span><h3>そのままの文字数</h3><p>入力した文章をそのまま数えます。スペースや改行も1文字として扱うため、入力欄の総文字数を知りたいときに使えます。</p></article><article><span>02</span><h3>空白なし文字数</h3><p>スペースと改行を除いて数えます。レポート、作文、志望理由、応募フォームなど「本文の文字数」を見たいときの目安です。</p></article><article><span>03</span><h3>原稿用紙400字換算</h3><p>空白を除いた文字数を400で割り、400字詰め原稿用紙で何枚分かを目安として表示します。</p></article></div></section>
+    <section class="faq shell" id="faq"><div><p class="eyebrow">文字数カウント FAQ</p><h2>文字数の数え方について。</h2></div><div class="faq-list"><details open><summary>空白を除いた文字数も数えられますか？</summary><p>はい。入力そのままの文字数と、スペース・改行を除いた文字数を同時に表示します。</p></details><details><summary>原稿用紙は何文字で計算しますか？</summary><p>400字詰め原稿用紙を基準に、空白を除いた文字数から枚数の目安を計算しています。</p></details><details><summary>入力した文章は保存・送信されますか？</summary><p>このページでは入力内容をサーバーへ送信せず、ブラウザ内でカウントしています。ページを閉じると入力内容は残りません。</p></details><details><summary>スマートフォンでも使えますか？</summary><p>はい。スマートフォンのブラウザでも使えます。文章をコピーして貼り付けてください。</p></details></div></section>
   </main>
-  <footer class="site-footer shell"><span>日本語ツール帖</span><div><a href="./">文字数カウント</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime" target="_blank" rel="noreferrer noopener">運営者情報</a></div><nav class="site-links" aria-label="Site information" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:10px;margin-top:12px"><a href="https://toolbox-hub.pages.dev/tools.html">All tools / 全ツール</a><span>·</span><a href="https://toolbox-hub.pages.dev/privacy.html">Privacy</a><span>·</span><a href="https://toolbox-hub.pages.dev/terms.html">Terms</a></nav></footer>
+  <footer class="site-footer shell"><span>日本語ツール帖</span><div><a href="./">文字数カウント</a><a href="https://kanji-quiz-77w.pages.dev/">難読漢字クイズ</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime" target="_blank" rel="noopener noreferrer">運営者情報</a></div><nav class="site-links" aria-label="Site information" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:10px;margin-top:12px"><a href="https://toolbox-hub.pages.dev/tools.html">All tools / 全ツール</a><span>·</span><a href="https://toolbox-hub.pages.dev/privacy.html">Privacy</a><span>·</span><a href="https://toolbox-hub.pages.dev/terms.html">Terms</a></nav></footer>
   <script src="script.js"></script>
 </body>
 </html>
