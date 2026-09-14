@@ -24,6 +24,12 @@ Mozcが作った候補をAIが読み直すため、AIが勝手に文章を生成
 - [Qiita：AIに変換候補を選ばせるIMEを作ってみた](https://qiita.com/yamatana364/items/c9b640e64070a798c4ff)
 - [Zenn：AIに変換候補を選ばせるIMEを作ってみた](https://zenn.dev/yamatana/articles/92cd6e19eb8d45)
 
+### 変換候補が変わる様子
+
+Mozcの候補をAIが文脈に合わせて選び、確定候補を入れ替える流れです。
+
+![AI-IMEの変換候補デモ](pr-video/ai-ime-demo.gif)
+
 ## 特徴
 
 - Mozcベースの通常変換を保ったまま、AI有効時だけ候補を再順位付け
