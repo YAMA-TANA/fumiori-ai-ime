@@ -1,0 +1,6 @@
+# WALK AIR
+> 散歩時の空気・気象条件などを確認する軽量ブラウザツールです。
+
+Canonical: https://walk-air.pages.dev/
+Language: Japanese / English / Chinese / Korean
+Topics: walking weather, air, outdoor conditions

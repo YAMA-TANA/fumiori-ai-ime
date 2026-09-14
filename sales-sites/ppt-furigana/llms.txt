@@ -1,0 +1,8 @@
+# PPTふりがな
+> PowerPoint内の漢字と読みを確認・修正し、ふりがな付きPowerPointとして保存できるWindowsソフトです。
+
+Canonical: https://ppt-furigana.pages.dev/
+Platform: Windows
+Store: https://yamatana.booth.pm/items/8628206
+Trial: https://yamatana.booth.pm/items/8628241
+Keywords: PowerPoint ふりがな, PPT ルビ, 教材, 日本語学習, スライド

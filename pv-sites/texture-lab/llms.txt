@@ -1,0 +1,6 @@
+# TEXTURE LAB
+> 紙・布・石などのプロシージャルテクスチャをシード付きで生成・調整・保存する無料ブラウザツールです。
+
+Canonical: https://texture-lab.pages.dev/
+Language: Japanese / English
+Topics: procedural texture, seamless texture, design asset

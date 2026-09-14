@@ -1,0 +1,6 @@
+# PIXEL LITE
+> ブラウザでドット絵・ピクセルアートを描き、編集・書き出しできる無料ツールです。
+
+Canonical: https://pixel-lite.pages.dev/
+Language: Japanese / English / Chinese / Korean
+Topics: pixel art, sprite editor, dot art

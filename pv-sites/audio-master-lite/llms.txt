@@ -1,0 +1,6 @@
+# AUDIO MASTER LITE
+> 無料のブラウザ音声編集・マスタリングツール。トリム、フェード、ノーマライズ、EQ、コンプレッション、16/24-bit WAV書き出しに対応します。
+
+Canonical: https://audio-master-lite.pages.dev/
+Language: Japanese / English
+Privacy: 音声ファイル本体はブラウザ内で処理します。

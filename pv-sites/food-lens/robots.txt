@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
-Sitemap: https://food-lens.pages.dev/sitemap.xml
 
+Sitemap: https://food-lens.pages.dev/sitemap.xml

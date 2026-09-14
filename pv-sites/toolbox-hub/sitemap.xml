@@ -1,2 +1,7 @@
-<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://toolbox-hub.pages.dev/</loc></url><url><loc>https://toolbox-hub.pages.dev/tools.html</loc></url><url><loc>https://toolbox-hub.pages.dev/privacy.html</loc></url><url><loc>https://toolbox-hub.pages.dev/terms.html</loc></url></urlset>
-
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://toolbox-hub.pages.dev/</loc><lastmod>2026-09-14</lastmod></url>
+  <url><loc>https://toolbox-hub.pages.dev/tools.html</loc><lastmod>2026-09-14</lastmod></url>
+  <url><loc>https://toolbox-hub.pages.dev/privacy.html</loc><lastmod>2026-09-14</lastmod></url>
+  <url><loc>https://toolbox-hub.pages.dev/terms.html</loc><lastmod>2026-09-14</lastmod></url>
+</urlset>

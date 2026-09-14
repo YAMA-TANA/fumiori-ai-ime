@@ -1,0 +1,6 @@
+# 画像を軽くする帖 / IMAGE SHRINK JP
+> JPEG・PNG・WebPを最大40枚まとめて圧縮・リサイズ・形式変換できる無料ツール。JPEG/WebPは目標KB指定、ZIP保存に対応します。
+
+Canonical: https://image-shrink-jp.pages.dev/
+Language: Japanese / English / Chinese / Korean
+Privacy: 画像ファイルはブラウザ内で処理します。

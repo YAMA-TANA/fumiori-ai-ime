@@ -1,0 +1,8 @@
+# Yamatana AI IME
+> Mozcの日本語変換候補をローカルAIで文脈に応じて再順位付けするWindows向け日本語IMEです。
+
+Canonical: https://yamatana-ai-ime.pages.dev/
+Source: https://github.com/YAMA-TANA/yamatana-ai-ime
+Platform: Windows 10 / 11
+Privacy: 入力・前後文脈・推論はPC内で処理します。
+Keywords: AI IME, 日本語入力, 日本語IME, Mozc, 文脈変換, ローカルAI

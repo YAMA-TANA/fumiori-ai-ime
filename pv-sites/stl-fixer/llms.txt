@@ -1,0 +1,6 @@
+# STL FIXER
+> STLファイルをブラウザで3Dプレビューし、メッシュ診断・簡易修復・再書き出しを行う無料ツールです。
+
+Canonical: https://stl-fixer.pages.dev/
+Language: Japanese / English
+Privacy: STLファイルはブラウザ内で処理します。

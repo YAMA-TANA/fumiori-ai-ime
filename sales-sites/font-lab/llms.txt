@@ -1,0 +1,7 @@
+# Yamatana Font Lab
+> ホラー、深海、リミナル、電子的世界観などを題字に込める日本語ディスプレイフォントのカタログです。
+
+Canonical: https://yamatana-font-lab.pages.dev/
+Store: https://yamatana.booth.pm/
+Language: Japanese
+Keywords: 日本語フォント, ディスプレイフォント, ホラーフォント, ゲームタイトル, 同人誌, BOOTH

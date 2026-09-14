@@ -1,0 +1,6 @@
+# SQLITE LITE
+> SQLiteデータベースをブラウザで開き、テーブル・スキーマ確認、SQL実行、データ閲覧を行う無料ツールです。
+
+Canonical: https://sqlite-lite.pages.dev/
+Language: Japanese / English
+Privacy: データベースファイルはブラウザ内で処理します。

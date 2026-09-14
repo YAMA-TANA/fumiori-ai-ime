@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
-Sitemap: https://pdf-workbench.pages.dev/sitemap.xml
 
+Sitemap: https://pdf-workbench-997.pages.dev/sitemap.xml

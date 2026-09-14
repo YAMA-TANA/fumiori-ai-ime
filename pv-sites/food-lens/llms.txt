@@ -1,0 +1,6 @@
+# FOOD LENS
+> 食品名やカテゴリから公開栄養データを検索し、糖分・塩分・たんぱく質・脂質・エネルギーを100g基準で比較する無料ツールです。
+
+Canonical: https://food-lens.pages.dev/
+Language: Japanese / English / Chinese / Korean
+Data source: Open Food Facts. 表示値は商品パッケージの代替ではありません。

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
-Sitemap: https://kanji-quiz-77w.pages.dev/sitemap.xml
 
+Sitemap: https://kanji-quiz-77w.pages.dev/sitemap.xml

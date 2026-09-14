@@ -1,0 +1,6 @@
+# 漢字の読み場 / KANJI QUIZ
+> 躑躅・紫陽花・蒲公英など、難読漢字の読み方をクイズと一覧で学べる無料ブラウザ教材です。
+
+Canonical: https://kanji-quiz-77w.pages.dev/
+Language: Japanese / English / Chinese / Korean
+Topics: 難読漢字、漢字クイズ、漢字の読み方、日本語学習

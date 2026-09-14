@@ -1,0 +1,6 @@
+# FONT STUDIO LITE
+> TTF・OTF・WOFF・WOFF2をインストールせず確認できる無料Font Preview / Font Tester。文章、字間、行間、ウェイトを調整しPNGやSVGへ出力できます。
+
+Canonical: https://font-studio-lite.pages.dev/
+Language: Japanese / English
+Privacy: 読み込んだフォントはブラウザ内で処理します。

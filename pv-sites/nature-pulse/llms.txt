@@ -1,0 +1,6 @@
+# NATURE PULSE
+> 身近な生き物や自然観察を記録・整理する軽量ブラウザツールです。
+
+Canonical: https://nature-pulse.pages.dev/
+Language: Japanese / English / Chinese / Korean
+Topics: nature observation, biodiversity, field notes

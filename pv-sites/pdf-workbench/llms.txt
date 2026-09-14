@@ -1,0 +1,6 @@
+# PDF WORKBENCH
+> 無料のブラウザPDF編集ツール。ページ削除・並べ替え・複製・回転、注釈、ハイライト、手書き、安全な墨消し、PDF書き出しに対応します。
+
+Canonical: https://pdf-workbench-997.pages.dev/
+Language: Japanese / English / Chinese / Korean
+Privacy: PDF本体はブラウザ内で処理します。

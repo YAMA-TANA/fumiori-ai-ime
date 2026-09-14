@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
-Sitemap: https://nature-pulse.pages.dev/sitemap.xml
 
+Sitemap: https://nature-pulse.pages.dev/sitemap.xml

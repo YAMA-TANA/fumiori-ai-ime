@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
-Sitemap: https://gis-lite.pages.dev/sitemap.xml
 
+Sitemap: https://gis-lite.pages.dev/sitemap.xml

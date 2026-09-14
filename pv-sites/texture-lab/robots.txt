@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
-Sitemap: https://texture-lab.pages.dev/sitemap.xml
 
+Sitemap: https://texture-lab.pages.dev/sitemap.xml

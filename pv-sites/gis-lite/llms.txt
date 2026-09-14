@@ -1,0 +1,6 @@
+# GIS LITE
+> GeoJSON Viewer / CSV Map。GeoJSONや緯度経度CSVを地図表示し、地名検索、距離・面積計測、編集、GeoJSON・CSV書き出しができます。
+
+Canonical: https://gis-lite.pages.dev/
+Language: Japanese / English / Chinese / Korean
+Privacy: 読み込んだファイル本体はローカル処理。地図タイル・地名検索は外部通信を行います。

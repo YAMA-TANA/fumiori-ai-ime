@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
-Sitemap: https://sqlite-lite.pages.dev/sitemap.xml
 
+Sitemap: https://sqlite-lite.pages.dev/sitemap.xml

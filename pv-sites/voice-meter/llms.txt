@@ -1,0 +1,6 @@
+# VOICE METER
+> マイク入力から声の音量・リズム・波形などを可視化する無料ブラウザツールです。
+
+Canonical: https://voice-meter.pages.dev/
+Language: Japanese / English
+Topics: voice meter, microphone test, audio visualization

@@ -1,0 +1,7 @@
+# TOOLBOX HUB
+> PDF、画像、音声、フォント、GIS、SQLite、3Dなど、ブラウザで使える無料Webツールをまとめたハブです。
+
+Canonical: https://toolbox-hub.pages.dev/
+Tool index: https://toolbox-hub.pages.dev/tools.html
+Language: Japanese / English / Chinese / Korean
+Principle: local-first tools where practical.

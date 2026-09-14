@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
-Sitemap: https://toolbox-hub.pages.dev/sitemap.xml
 
+Sitemap: https://toolbox-hub.pages.dev/sitemap.xml

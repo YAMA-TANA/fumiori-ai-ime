@@ -1,0 +1,6 @@
+# NIHONGO COUNTER
+> 日本語文章の文字数、行数、原稿用紙換算などを確認する無料ブラウザツールです。
+
+Canonical: https://nihongo-counter.pages.dev/
+Language: Japanese
+Topics: 文字数カウント、日本語、原稿用紙、文章チェック
