@@ -3,14 +3,53 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Yamatana AI IME — 変換を、文脈で整える</title>
-  <meta name="description" content="Yamatana AI IMEは、Mozcの候補をローカルAIで再順位付けするWindows向け日本語IMEです。入力内容は外部へ送信しません。">
+  <title>AI IME・日本語入力｜文脈で変換候補を並べ替えるWindows IME - Yamatana AI IME</title>
+  <meta name="description" content="Yamatana AI IMEは、Mozcの日本語変換候補をローカルAIで文脈に応じて再順位付けするWindows向けAI IMEです。入力内容を外部へ送らず、同音異義語や専門語を含む日本語入力の変換候補をPC内で整えます。">
+  <meta name="robots" content="index,follow,max-image-preview:large">
   <meta name="theme-color" content="#16151d">
   <link rel="canonical" href="https://yamatana-ai-ime.pages.dev/">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="tokens.css">
   <link rel="stylesheet" href="styles.css">
-  <!-- Google tag (gtag.js) -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="ja_JP">
+  <meta property="og:site_name" content="Yamatana AI IME">
+  <meta property="og:title" content="Yamatana AI IME — 文脈で変換候補を整えるWindows向けAI IME">
+  <meta property="og:description" content="Mozcの候補をローカルAIで再順位付け。入力を外部へ送らず、文脈を見て日本語変換を整えます。">
+  <meta property="og:url" content="https://yamatana-ai-ime.pages.dev/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="Yamatana AI IME — 文脈で変換候補を整える">
+  <meta name="twitter:description" content="Mozc + ローカルAIで、日本語変換候補を文脈に応じて再順位付け。">
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"SoftwareApplication",
+    "name":"Yamatana AI IME",
+    "url":"https://yamatana-ai-ime.pages.dev/",
+    "downloadUrl":"https://github.com/YAMA-TANA/yamatana-ai-ime/releases",
+    "softwareHelp":"https://github.com/YAMA-TANA/yamatana-ai-ime",
+    "operatingSystem":"Windows 10, Windows 11",
+    "applicationCategory":"UtilitiesApplication",
+    "isAccessibleForFree":true,
+    "inLanguage":"ja",
+    "description":"Mozcの日本語変換候補をローカルAIで文脈に応じて再順位付けするWindows向け日本語IME。",
+    "featureList":["Mozcベースの日本語入力","前後文脈を使った候補再順位付け","ローカルAI推論","AI停止時のMozcフォールバック","CPU実行対応","AIのON/OFFと文脈保持量の設定"],
+    "offers":{"@type":"Offer","price":"0","priceCurrency":"JPY","url":"https://github.com/YAMA-TANA/yamatana-ai-ime/releases"},
+    "creator":{"@type":"Organization","name":"Yamatana"}
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context":"https://schema.org",
+    "@type":"FAQPage",
+    "mainEntity":[
+      {"@type":"Question","name":"AI IMEとは何ですか？","acceptedAnswer":{"@type":"Answer","text":"Yamatana AI IMEは、Mozcが生成した日本語変換候補を前後の文脈を使って再順位付けするWindows向けIMEです。"}},
+      {"@type":"Question","name":"入力した文章は外部サーバーへ送信されますか？","acceptedAnswer":{"@type":"Answer","text":"Yamatana AI IMEの候補再順位付けはPC内で実行し、入力・前後文脈・推論を外部AI APIへ送信しません。"}},
+      {"@type":"Question","name":"Mozcを使わなくなるのですか？","acceptedAnswer":{"@type":"Answer","text":"いいえ。Mozcの候補生成を土台にし、その候補順をAIで整える設計です。AIが停止した場合もMozc候補へ戻れるフェイルセーフがあります。"}},
+      {"@type":"Question","name":"Windows 10とWindows 11で使えますか？","acceptedAnswer":{"@type":"Answer","text":"現在の配布対象はWindows 10 / 11です。Beta版の必要環境と注意事項はGitHub Releasesで確認できます。"}}
+    ]
+  }
+  </script>
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-YZ8R7GTWQR"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
@@ -25,7 +64,9 @@
     <nav class="nav-links" aria-label="メインナビゲーション">
       <a href="#why">特徴</a>
       <a href="#how">仕組み</a>
-      <a class="nav-cta" href="https://github.com/YAMA-TANA/yamatana-ai-ime/releases" target="_blank" rel="noreferrer">Releaseを見る</a>
+      <a href="#use-cases">用途</a>
+      <a href="#faq">FAQ</a>
+      <a class="nav-cta" href="https://github.com/YAMA-TANA/yamatana-ai-ime/releases" target="_blank" rel="noopener noreferrer">Releaseを見る</a>
     </nav>
   </header>
 
@@ -34,13 +75,13 @@
       <div class="hero-copy">
         <p class="eyebrow"><span class="signal-dot"></span>LOCAL-FIRST JAPANESE INPUT</p>
         <h1>変換を、<span class="accent-text">文脈で整える。</span></h1>
-        <p class="hero-lede">Mozcの安心感はそのままに、前後の文脈を見て候補を再順位付け。書く人の手元で完結する、Windows向け日本語IMEです。</p>
+        <p class="hero-lede">Mozcの安心感はそのままに、前後の文脈を見て候補を再順位付け。書く人の手元で完結する、Windows向けのローカルAI日本語IMEです。</p>
         <div class="hero-actions">
-          <a class="button button-primary" href="https://github.com/YAMA-TANA/yamatana-ai-ime/releases" target="_blank" rel="noreferrer">無料でReleaseを見る <span aria-hidden="true">↗</span></a>
+          <a class="button button-primary" href="https://github.com/YAMA-TANA/yamatana-ai-ime/releases" target="_blank" rel="noopener noreferrer">無料でReleaseを見る <span aria-hidden="true">↗</span></a>
           <a class="text-link" href="#demo">変換デモを試す <span aria-hidden="true">↓</span></a>
         </div>
         <div class="trust-row" aria-label="製品の要点">
-          <span>Windows 10 / 11</span><span>CPU実行対応</span><span>入力はローカル処理</span>
+          <span>Windows 10 / 11</span><span>Mozcベース</span><span>CPU実行対応</span><span>入力はローカル処理</span>
         </div>
       </div>
 
@@ -59,31 +100,49 @@
     </section>
 
     <section class="section shell" id="why">
-      <div class="section-intro"><p class="eyebrow">WHY IT EXISTS</p><h2>変換の「惜しい」を、<br>手元で減らす。</h2></div>
+      <div class="section-intro"><p class="eyebrow">WHY AI IME</p><h2>日本語変換の「惜しい」を、<br>手元で減らす。</h2><p>一般的なIMEは読みから候補を生成します。Yamatana AI IMEは、その候補に前後文脈を加えて順位を整え、同じ読みでも文章に合う表記を上へ出しやすくします。</p></div>
       <div class="feature-grid">
         <article class="feature-card feature-card-dark"><span class="feature-index">01</span><h3>文脈を見る</h3><p>前後の文章と文書分野を、候補の並び替えに使います。短い単語だけで判断しません。</p></article>
-        <article class="feature-card"><span class="feature-index">02</span><h3>失敗しても戻れる</h3><p>AIが失敗・停止しても、Mozcの候補を使えるフェイルセーフ設計です。</p></article>
-        <article class="feature-card"><span class="feature-index">03</span><h3>外へ送らない</h3><p>入力、前後文脈、辞書、推論はPC内で処理。アプリ本体にテレメトリはありません。</p></article>
+        <article class="feature-card"><span class="feature-index">02</span><h3>Mozcを土台にする</h3><p>候補生成はMozcベース。既存の日本語入力の流れを大きく変えず、AIは候補の再順位付けを担当します。</p></article>
+        <article class="feature-card"><span class="feature-index">03</span><h3>外へ送らない</h3><p>入力、前後文脈、辞書、推論はPC内で処理。外部AI APIへ文章を送らずに候補を整えます。</p></article>
       </div>
     </section>
 
     <section class="section section-contrast shell" id="how">
-      <div class="section-intro"><p class="eyebrow">A SMALLER LOOP</p><h2>入力の流れを、<br>変えすぎない。</h2></div>
+      <div class="section-intro"><p class="eyebrow">HOW IT WORKS</p><h2>Mozc + ローカルAI。<br>入力の流れを変えすぎない。</h2></div>
       <div class="steps">
-        <div class="step"><span>01</span><div><h3>いつも通り入力</h3><p>Mozcベースの変換をそのまま使います。</p></div></div>
-        <div class="step"><span>02</span><div><h3>AIが候補を再順位付け</h3><p>文脈、文書分野、辞書情報を候補の判断に加えます。</p></div></div>
-        <div class="step"><span>03</span><div><h3>トレイから調整</h3><p>AIのON/OFF、文脈保持量、CPU/GPUを変更できます。</p></div></div>
+        <div class="step"><span>01</span><div><h3>いつも通り日本語を入力</h3><p>Mozcベースで変換候補を生成します。</p></div></div>
+        <div class="step"><span>02</span><div><h3>AIが候補を再順位付け</h3><p>前後文脈、文書分野、辞書情報を判断材料に候補順を調整します。</p></div></div>
+        <div class="step"><span>03</span><div><h3>失敗時はMozcへ戻る</h3><p>AIが停止・失敗しても候補を失わないフェイルセーフを用意しています。トレイからAIのON/OFFや文脈保持量も調整できます。</p></div></div>
+      </div>
+    </section>
+
+    <section class="section shell" id="use-cases">
+      <div class="section-intro"><p class="eyebrow">USE CASES</p><h2>同じ読みが多い日本語ほど、<br>文脈が効く。</h2><p>AI IMEが狙うのは「文章を生成すること」ではなく、すでに入力した読みから適切な変換候補を選びやすくすることです。</p></div>
+      <div class="feature-grid">
+        <article class="feature-card"><span class="feature-index">A</span><h3>同音異義語</h3><p>「せんこう」の専攻・選考・線香・選鉱のように、読みが同じ候補を文章の前後から見分ける場面。</p></article>
+        <article class="feature-card"><span class="feature-index">B</span><h3>専門語・複合語</h3><p>一般語だけでは順位が不安定になりやすい技術・学術・業務文書の入力を、文脈込みで扱う場面。</p></article>
+        <article class="feature-card"><span class="feature-index">C</span><h3>プライバシー重視</h3><p>未公開原稿、業務メモ、個人的な文章など、入力内容をクラウドAIへ送りたくない場面。</p></article>
+      </div>
+    </section>
+
+    <section class="section shell" id="faq">
+      <div class="section-intro"><p class="eyebrow">FAQ</p><h2>AI IMEについて、よくある質問。</h2></div>
+      <div class="steps">
+        <details class="step"><summary><strong>AI IMEとは何ですか？</strong></summary><p>Yamatana AI IMEは、Mozcが作った日本語変換候補を、前後の文脈を使うローカルAIで再順位付けするWindows向けIMEです。</p></details>
+        <details class="step"><summary><strong>入力した文章は外部サーバーへ送信されますか？</strong></summary><p>候補再順位付けはPC内で実行します。入力・前後文脈・推論を外部AI APIへ送信しません。</p></details>
+        <details class="step"><summary><strong>Mozcとは別のIMEですか？</strong></summary><p>Mozcを候補生成の土台として利用し、AIが候補順を整える構成です。AIが止まってもMozc候補へ戻れるようにしています。</p></details>
+        <details class="step"><summary><strong>Windows 10 / 11で使えますか？</strong></summary><p>現在の配布対象はWindows 10 / 11です。Beta版の署名状態や必要環境はGitHub Releasesの最新情報を確認してください。</p></details>
       </div>
     </section>
 
     <section class="download-banner shell">
       <div><p class="eyebrow">BETA / UNSIGNED</p><h2>まずは手元の文章で、<br>変換の違いを確かめる。</h2><p>現在のBetaは未署名です。Windowsの警告や必要環境を確認してからお使いください。</p></div>
-      <a class="button button-primary" href="https://github.com/YAMA-TANA/yamatana-ai-ime/releases" target="_blank" rel="noreferrer">GitHub Releases <span aria-hidden="true">↗</span></a>
+      <a class="button button-primary" href="https://github.com/YAMA-TANA/yamatana-ai-ime/releases" target="_blank" rel="noopener noreferrer">GitHub Releases <span aria-hidden="true">↗</span></a>
     </section>
   </main>
 
-  <footer class="site-footer shell"><span>© Yamatana</span><div><a href="https://github.com/YAMA-TANA/yamatana-ai-ime" target="_blank" rel="noreferrer">Source</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/PRIVACY.md" target="_blank" rel="noreferrer">Privacy</a></div></footer>
+  <footer class="site-footer shell"><span>© Yamatana</span><div><a href="https://github.com/YAMA-TANA/yamatana-ai-ime" target="_blank" rel="noopener noreferrer">Source</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/PRIVACY.md" target="_blank" rel="noopener noreferrer">Privacy</a><a href="https://toolbox-hub.pages.dev/" target="_blank" rel="noopener noreferrer">Free web tools</a></div></footer>
   <script src="script.js"></script>
 </body>
 </html>
-
