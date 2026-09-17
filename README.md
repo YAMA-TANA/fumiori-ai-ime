@@ -1,6 +1,6 @@
-# Yamatana AI IME (MOZC Ver)
+# Fumiori AI IME
 
-Yamatana AI IMEは、Mozcの変換候補をローカルAI rerankerで並べ替えるWindows向け日本語IMEです。文脈、文書分野、ユーザー辞書相当の語彙情報を変換判断に使いながら、入力内容を外部へ送信しません。
+Fumiori AI IMEは、Mozcの変換候補をローカルAI rerankerで並べ替えるWindows向け日本語IMEです。文脈、文書分野、ユーザー辞書相当の語彙情報を変換判断に使いながら、入力内容を外部へ送信しません。
 
 > **Beta / 未署名** — 現在公開中のBetaは検証用の未署名ビルドです。Windowsの警告が表示される場合があります。SignPath FoundationによるOSSコード署名の申請準備中であり、署名済みであるかのような表示は行いません。
 
@@ -22,6 +22,10 @@ Mozcが作った候補をAIが読み直すため、AIが勝手に文章を生成
 同じ「あめ」でも、天気の話なら「雨」、お土産の話なら「飴」。このような文脈による使い分けが、デモの見どころです。
 
 実際のMozc候補を使った210例の検証では、自然な表記を含めた正解率が **72.4%（Mozcのみ）から99.1%（AI併用）** になりました。これは検証用データでの結果であり、製品全体の精度を保証する数字ではありません。条件・データ・スクリプトは公開しています。
+
+### ドット絵ゲーム風の変換体験
+
+変換候補ウィンドウは、8bitゲームを思わせる限定色、カクカクしたステップ角、選択中の「ヒット」カードで構成しています。AIが候補を入れ替えたときは `CHAIN +1` が表示され、文脈に合う候補を選ぶほど連鎖が続くように見えるデザインです。見た目はゲーム風でも、変換の確定操作とMozcのフェイルセーフは従来どおりです。
 
 詳しい背景と実例はこちらです。
 
@@ -57,10 +61,10 @@ Mozcが作った候補をAIが読み直すため、AIが勝手に文章を生成
 ## インストール
 
 1. [Releases](https://github.com/YAMA-TANA/yamatana-ai-ime/releases) から最新の `.msi` と `SHA256SUMS.txt` をダウンロードします。
-2. PowerShellで `Get-FileHash .\Yamatana-AI-IME-MOZC-Ver-<version>-x64.msi -Algorithm SHA256` を実行し、公開ハッシュと一致することを確認します。
+2. PowerShellで `Get-FileHash .\Yamatana-AI-IME-MOZC-Ver-<version>-x64.msi -Algorithm SHA256` を実行し、公開ハッシュと一致することを確認します。配布ファイル名は既存インストールとの互換性のため、旧内部名を維持しています。
 3. `Install-Yamatana-AI-IME.cmd` をダブルクリックしてインストールします。画面にMSI終了コードが表示され、`3010` または `1641` の場合は「インストール成功・PCの再起動が必要」と表示されます。MSIを直接実行する場合は、完了後のログまたは終了コードを確認してください。
-4. サインアウトまたは再起動後、トレイとAIモデルが起動します。`Win + Space` で **Yamatana AI IME (MOZC Ver)** を選択します。
-5. 通知領域のYamatanaアイコンからAIをOFFにできます。アイコンが隠れている場合は、タスクバーの `^` を開いてください。
+4. サインアウトまたは再起動後、トレイとAIモデルが起動します。`Win + Space` で **Fumiori AI IME** を選択します。
+5. 通知領域のFumioriアイコンからAIをOFFにできます。アイコンが隠れている場合は、タスクバーの `^` を開いてください。
 
 本ソフトはMSIXではありません。既存のMozc TSF登録順序を維持したMSIで配布します。
 
@@ -70,7 +74,7 @@ Mozcが作った候補をAIが読み直すため、AIが勝手に文章を生成
 
 ## アンインストール
 
-Windowsの **設定 → アプリ → インストールされているアプリ → Yamatana AI IME (MOZC Ver) → アンインストール** を選びます。完了後にサインアウトまたは再起動してください。
+Windowsの **設定 → アプリ → インストールされているアプリ → Fumiori AI IME → アンインストール** を選びます。完了後にサインアウトまたは再起動してください。
 
 ## プライバシー
 
@@ -84,7 +88,7 @@ Windowsの **設定 → アプリ → インストールされているアプリ
 
 ## ライセンス
 
-Yamatana独自部分は [Apache License 2.0](LICENSE) です。Mozc、Ruri/ONNXモデル、辞書、同梱ライブラリには各上流ライセンスが適用されます。詳細は [NOTICE](NOTICE) と [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) を参照してください。
+Fumiori独自部分は [Apache License 2.0](LICENSE) です。Mozc、Ruri/ONNXモデル、辞書、同梱ライブラリには各上流ライセンスが適用されます。詳細は [NOTICE](NOTICE) と [THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) を参照してください。
 
 ## Code signing policy
 

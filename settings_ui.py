@@ -1,4 +1,4 @@
-"""Product settings window for Yamatana AI IME (MOZC Ver)."""
+"""Product settings window for Fumiori AI IME."""
 
 # Hallmark · pre-emit critique: P5 H5 E4 S5 R5 V4
 # Hallmark · macrostructure: Workbench · genre: modern-minimal · theme: Cobalt
@@ -110,7 +110,7 @@ class SettingsWindow:
         header.pack(fill=tk.X)
         header.pack_propagate(False)
         tk.Label(
-            header, text="Yamatana AI IME", bg=TOKENS["paper"], fg=TOKENS["ink"],
+            header, text=PRODUCT_NAME, bg=TOKENS["paper"], fg=TOKENS["ink"],
             font=("Segoe UI Semibold", 20),
         ).pack(anchor=tk.W, padx=28, pady=(17, 0))
         tk.Label(

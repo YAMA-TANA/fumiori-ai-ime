@@ -33,7 +33,7 @@ def assert_no_row(database: msilib.Database, sql: str) -> None:
 def validate(msi_path: Path, admin_root: Path) -> None:
     database = msilib.OpenDatabase(str(msi_path), msilib.MSIDBOPEN_READONLY)
     expected_properties = {
-        "ProductName": "Yamatana AI IME (MOZC Ver)",
+        "ProductName": "Fumiori AI IME",
         "ProductVersion": os.environ.get("YAMATANA_PRODUCT_VERSION", DEFAULT_PRODUCT_VERSION),
         "Manufacturer": "Yamatana",
         "UpgradeCode": "{A9FD6996-83DE-4DBE-9BE9-8C7F9016493A}",

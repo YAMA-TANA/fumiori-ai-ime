@@ -44,7 +44,7 @@ $resolvedMsi = Resolve-MsiPath $MsiPath
 $logPath = Join-Path (Split-Path -Parent $resolvedMsi) 'Yamatana-AI-IME-install.log'
 $msiexec = Join-Path $env:WINDIR 'System32\msiexec.exe'
 
-Write-Host "Yamatana AI IME をインストールします: $resolvedMsi"
+Write-Host "Fumiori AI IME をインストールします: $resolvedMsi"
 Write-Host "インストールログ: $logPath"
 
 $process = Start-Process -FilePath $msiexec -Wait -PassThru -ArgumentList @(

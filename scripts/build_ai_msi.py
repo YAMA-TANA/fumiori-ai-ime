@@ -1,4 +1,4 @@
-"""Build the standalone Yamatana AI IME (MOZC Ver) MSI with WiX 4."""
+"""Build the standalone Fumiori AI IME MSI with WiX 4."""
 
 from __future__ import annotations
 

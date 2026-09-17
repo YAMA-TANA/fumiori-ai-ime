@@ -1,7 +1,7 @@
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(2, 0, 7, 0),
-    prodvers=(2, 0, 7, 0),
+    filevers=(2, 0, 10, 0),
+    prodvers=(2, 0, 10, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -14,13 +14,13 @@ VSVersionInfo(
       StringTable(
         '041104B0',
         [StringStruct('CompanyName', 'Yamatana'),
-         StringStruct('FileDescription', 'Yamatana AI IME (MOZC Ver)'),
-         StringStruct('FileVersion', '2.0.7.0'),
+         StringStruct('FileDescription', 'Fumiori AI IME'),
+         StringStruct('FileVersion', '2.0.10.0'),
          StringStruct('InternalName', 'YamatanaAIIME'),
          StringStruct('LegalCopyright', 'Copyright (c) 2026 Yamatana'),
          StringStruct('OriginalFilename', 'YamatanaAIIME.exe'),
-         StringStruct('ProductName', 'Yamatana AI IME (MOZC Ver)'),
-         StringStruct('ProductVersion', '2.0.7-beta')])
+         StringStruct('ProductName', 'Fumiori AI IME'),
+         StringStruct('ProductVersion', '2.0.10-beta')])
     ]),
     VarFileInfo([VarStruct('Translation', [1041, 1200])])
   ]

@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 
 
-DEFAULT_PRODUCT_VERSION = "2.0.8.0"
-DEFAULT_RELEASE_LABEL = "2.0.8-beta"
+DEFAULT_PRODUCT_VERSION = "2.0.10.0"
+DEFAULT_RELEASE_LABEL = "2.0.10-beta"
 _VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 
 
@@ -52,12 +52,12 @@ def write_pyinstaller_version_info(
       StringTable(
         '041104B0',
         [StringStruct('CompanyName', 'Yamatana'),
-         StringStruct('FileDescription', 'Yamatana AI IME (MOZC Ver)'),
+         StringStruct('FileDescription', 'Fumiori AI IME'),
          StringStruct('FileVersion', '{dotted}'),
          StringStruct('InternalName', 'YamatanaAIIME'),
          StringStruct('LegalCopyright', 'Copyright (c) 2026 Yamatana'),
          StringStruct('OriginalFilename', 'YamatanaAIIME.exe'),
-         StringStruct('ProductName', 'Yamatana AI IME (MOZC Ver)'),
+         StringStruct('ProductName', 'Fumiori AI IME'),
          StringStruct('ProductVersion', '{label}')])
     ]),
     VarFileInfo([VarStruct('Translation', [1041, 1200])])

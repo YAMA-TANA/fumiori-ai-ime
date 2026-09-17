@@ -17,6 +17,13 @@ if ($LASTEXITCODE -ne 0) { throw 'Mozc fetch failed' }
 & git -C $Checkout checkout --detach $Config.mozc.commit
 if ($LASTEXITCODE -ne 0) { throw 'Mozc checkout failed' }
 
+# The checkout is a disposable build workspace. Reset tracked files before
+# copying the current overlay; otherwise repeated local builds can accumulate
+# duplicate C++ helpers and make patch matching ambiguous. Keep downloaded
+# dependencies and Bazel outputs so subsequent local release builds stay fast.
+& git -C $Checkout reset --hard $Config.mozc.commit
+if ($LASTEXITCODE -ne 0) { throw 'Mozc checkout reset failed' }
+
 $ActualCommit = (& git -C $Checkout rev-parse HEAD).Trim()
 if ($ActualCommit -ne $Config.mozc.commit) { throw "Mozc commit mismatch: $ActualCommit" }
 

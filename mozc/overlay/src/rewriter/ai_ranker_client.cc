@@ -165,8 +165,7 @@ bool ReadDeadline(HANDLE pipe, std::string* output, ULONGLONG deadline) {
 
 bool ExchangePayload(const std::wstring& pipe_name, const std::string& payload,
                      int timeout_ms, std::string* response) {
-  if (response == nullptr || timeout_ms <= 0 ||
-      timeout_ms > static_cast<int>(INFINITE - 1)) {
+  if (response == nullptr || timeout_ms <= 0) {
     return false;
   }
   const ULONGLONG deadline =

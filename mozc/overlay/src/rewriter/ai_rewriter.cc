@@ -279,6 +279,20 @@ bool HasCandidateInternalPhraseContext(const converter::Segment& segment) {
   return false;
 }
 
+void MarkRerankedCandidate(converter::Candidate* candidate) {
+  if (candidate == nullptr) return;
+  candidate->attributes |= converter::Attribute::RERANKED;
+  // The renderer displays descriptions in its side column. Keep the original
+  // description, but give an AI-promoted winner a compact chain badge so
+  // multiple promoted segments read as one conversion streak.
+  if (candidate->description.find("CHAIN") == std::string::npos) {
+    if (!candidate->description.empty()) {
+      candidate->description.append("  ");
+    }
+    candidate->description.append("CHAIN +1");
+  }
+}
+
 bool ApplySelectedPermutation(
     converter::Segment* segment,
     const std::vector<ai_ranker::RankedCandidate>& ranked,
@@ -338,7 +352,7 @@ bool ApplySelectedPermutation(
     segment->move_candidate(current, target);
   }
   if (top_promoted) {
-    segment->mutable_candidate(0)->attributes |= converter::Attribute::RERANKED;
+    MarkRerankedCandidate(segment->mutable_candidate(0));
   }
   return true;
 }
@@ -355,7 +369,7 @@ bool ApplyWinner(converter::Segment* segment,
     return false;
   }
   segment->move_candidate(static_cast<int>(winner_index), 0);
-  segment->mutable_candidate(0)->attributes |= converter::Attribute::RERANKED;
+  MarkRerankedCandidate(segment->mutable_candidate(0));
   return true;
 }
 

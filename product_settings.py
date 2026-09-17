@@ -1,4 +1,4 @@
-"""Local-only product settings for Yamatana AI IME (MOZC Ver)."""
+"""Local-only product settings for Fumiori AI IME."""
 
 from __future__ import annotations
 
@@ -9,8 +9,10 @@ from pathlib import Path
 from typing import Any, Mapping, Optional
 
 
-PRODUCT_NAME = "Yamatana AI IME (MOZC Ver)"
-PRODUCT_VERSION = "2.0.7-beta"
+# User-facing name for the GMO-targeted Fumiori build.  Keep the executable,
+# registry, and data-directory identifiers below stable for upgrade support.
+PRODUCT_NAME = "Fumiori AI IME"
+PRODUCT_VERSION = "2.0.10-beta"
 SETTINGS_SCHEMA = 1
 LEGACY_AUTOSTART_VALUE_NAME = "Yamatana-AI-IME"
 WINDOWS_RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
