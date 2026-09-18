@@ -100,7 +100,9 @@ def validate(msi_path: Path, admin_root: Path) -> None:
     }
     required = (
         "mozc_tip32.dll", "mozc_tip64.dll", "mozc_server.exe",
-        "YamatanaAIIME.exe", "ruri-ime-lora3-fp16.onnx", "ruri-ime-lora3-int8.onnx",
+        "YamatanaAIIME.exe",
+        "dual-encoder-70m-fp16.onnx", "dual-encoder-70m-int8.onnx",
+        "ruri-ime-lora3-fp16.onnx", "ruri-ime-lora3-int8.onnx",
         "ruri-ime-lora6-fp16.onnx", "ruri-ime-lora6-int8.onnx",
         "PRIVACY.md", "LICENSE", "NOTICE", "THIRD_PARTY_LICENSES.md",
         "tokenizer.json",
@@ -108,6 +110,23 @@ def validate(msi_path: Path, admin_root: Path) -> None:
     missing = [name for name in required if name not in names]
     if missing:
         raise AssertionError(f"Admin image missing: {', '.join(missing)}")
+
+    # Actively verify that the packaged YamatanaAIIME executable starts cleanly
+    exe_candidates = [p for p in admin_root.rglob("YamatanaAIIME.exe") if p.is_file()]
+    if not exe_candidates:
+        raise AssertionError("Admin image missing YamatanaAIIME.exe")
+    import subprocess
+    smoke = subprocess.run(
+        [str(exe_candidates[0]), "--check"],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    if smoke.returncode != 0:
+        raise AssertionError(
+            f"YamatanaAIIME.exe startup smoke test failed with code {smoke.returncode}.\n"
+            f"stdout: {smoke.stdout}\nstderr: {smoke.stderr}"
+        )
 
     digest = hashlib.sha256(msi_path.read_bytes()).hexdigest().upper()
     file_count = sum(1 for path in admin_root.rglob("*") if path.is_file())

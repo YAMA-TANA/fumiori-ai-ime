@@ -14,9 +14,12 @@ if %errorlevel% neq 0 (
     exit /b
 )
 
+set "DIST=c:\Users\lotof\Videos\research\live2d\yamatana-ai-ime\dist\YamatanaAIIME"
+set "RUNTIME_DIR=C:\Program Files (x86)\Yamatana AI IME\ai_runtime"
+set "SRC_DUAL=c:\Users\lotof\Videos\research\live2d\yamatana-ai-ime\build\onnx-model-70m-dual-encoder"
 set "SRC3=c:\Users\lotof\Videos\research\live2d\yamatana-ai-ime\build\onnx-model-70m-lora3-20260909"
 set "SRC6=c:\Users\lotof\Videos\research\live2d\yamatana-ai-ime\build\onnx-model-70m-lora6-preceding-only-20260915"
-set "TOK=c:\Users\lotof\Videos\research\live2d\yamatana-ai-ime\build\onnx-model-70m\tokenizer.json"
+set "TOK=c:\Users\lotof\Videos\research\live2d\yamatana-ai-ime\build\onnx-model-70m-dual-encoder\tokenizer.json"
 set "DST=C:\Program Files (x86)\Yamatana AI IME\ai_runtime\_internal\models\onnx"
 set "EXE=C:\Program Files (x86)\Yamatana AI IME\ai_runtime\YamatanaAIIME.exe"
 
@@ -24,7 +27,16 @@ echo 1. 稼働中のYamatanaAIIMEを停止中...
 taskkill /F /IM YamatanaAIIME.exe 2>nul
 timeout /t 2 /nobreak > nul
 
-echo 2. 最新ONNXモデルをコピー中...
+echo 2. 最新AI実行バイナリとランタイムを配置中...
+if exist "%DIST%\YamatanaAIIME.exe" (
+    copy /Y "%DIST%\YamatanaAIIME.exe" "%RUNTIME_DIR%\YamatanaAIIME.exe"
+    robocopy "%DIST%\_internal" "%RUNTIME_DIR%\_internal" /E /R:2 /W:1 /NJH /NJS /NDL /NC /NS >nul 2>&1
+)
+
+echo 3. 最新Dual-Encoder 70M ONNXモデルをコピー中...
+if not exist "%DST%" mkdir "%DST%"
+copy /Y "%SRC_DUAL%\dual-encoder-70m-fp16.onnx" "%DST%\dual-encoder-70m-fp16.onnx"
+copy /Y "%SRC_DUAL%\dual-encoder-70m-int8.onnx" "%DST%\dual-encoder-70m-int8.onnx"
 copy /Y "%SRC3%\ruri-ime-fp16.onnx" "%DST%\ruri-ime-lora3-fp16.onnx"
 copy /Y "%SRC3%\ruri-ime-int8.onnx" "%DST%\ruri-ime-lora3-int8.onnx"
 copy /Y "%SRC6%\ruri-ime-fp16.onnx" "%DST%\ruri-ime-lora6-fp16.onnx"
@@ -33,7 +45,7 @@ copy /Y "%TOK%" "%DST%\tokenizer.json"
 
 if %errorlevel% equ 0 (
     echo.
-    echo [成功] 最新の70Mモデル（正答率96.7%%）を正常に配置しました！
+    echo [成功] 最新のDual-Encoder 70Mモデル（超低遅延9ms）およびバイナリを正常に配置しました！
 ) else (
     echo.
     echo [エラー] コピーに失敗しました。
@@ -41,7 +53,13 @@ if %errorlevel% equ 0 (
     exit /b 1
 )
 
-echo 3. YamatanaAIIMEを再起動中...
+echo 4. YamatanaAIIMEの動作確認・再起動中...
+"%EXE%" --check
+if %errorlevel% neq 0 (
+    echo [エラー] バイナリの起動検証に失敗しました。
+    pause
+    exit /b 1
+)
 start "" "%EXE%"
 
 echo.

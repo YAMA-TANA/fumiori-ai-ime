@@ -12,7 +12,10 @@ import sys
 import threading
 import time
 from pathlib import Path
-from typing import Any, Optional
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
 if getattr(sys, "frozen", False):
     ROOT = Path(sys.executable).parent
@@ -40,16 +43,14 @@ PRODUCT_DATA_DIR = product_data_dir()
 SETTINGS_FILE = default_settings_path()
 STATUS_FILE = PRODUCT_DATA_DIR / "ai_ime_status.json"
 LOG_DIR = PRODUCT_DATA_DIR / "logs"
-MODEL_LABEL = "Ruri-v3-70M (IME distilled)"
+MODEL_LABEL = "ModernBERT 70M Dual-Encoder (IME Dot-Product)"
 
 
-def _packaged_ensemble_arguments(settings: dict[str, Any]) -> list[str]:
-    """Return the packaged LoRA3/LoRA6 model arguments when available.
+def _packaged_model_arguments(settings: dict[str, Any]) -> tuple[str, list[str]]:
+    """Return backend name and model arguments based on available packaged models.
 
-    The development tree still falls back to the normal single-model
-    autodetection.  Frozen installations contain both precision variants
-    under ``models/onnx``; selecting the pair here keeps the ONNX backend's
-    calibrated ensemble active without requiring a user-editable setting.
+    Prioritizes Dual-Encoder 70M ONNX for ultra-low latency dot-product inference (<10ms),
+    falling back to Cross-Encoder LoRA ensemble if only legacy models are found.
     """
     roots: list[Path] = []
     if getattr(sys, "_MEIPASS", None):
@@ -67,15 +68,35 @@ def _packaged_ensemble_arguments(settings: dict[str, Any]) -> list[str]:
         except Exception:
             use_gpu = False
     precision = "fp16" if use_gpu else "int8"
-    relative = (
+
+    # 1. Dual-Encoder 70M ONNX (primary fast backend)
+    dual_relative = (
+        Path("models") / "onnx" / f"dual-encoder-70m-{precision}.onnx",
+        Path("build") / "onnx-model-70m-dual-encoder" / f"dual-encoder-70m-{precision}.onnx",
+    )
+    for root in roots:
+        for rel in dual_relative:
+            candidate = root / rel
+            if candidate.exists():
+                return "dual_encoder", ["--ensemble-model", str(candidate)]
+
+    # 2. Legacy Cross-Encoder LoRA ensemble fallback
+    ensemble_relative = (
         Path("models") / "onnx" / f"ruri-ime-lora3-{precision}.onnx",
         Path("models") / "onnx" / f"ruri-ime-lora6-{precision}.onnx",
     )
     for root in roots:
-        paths = [root / item for item in relative]
+        paths = [root / item for item in ensemble_relative]
         if all(path.exists() for path in paths):
-            return [argument for path in paths for argument in ("--ensemble-model", str(path))]
-    return []
+            args = [argument for path in paths for argument in ("--ensemble-model", str(path))]
+            return "onnx", args
+
+    return "dual_encoder", []
+
+
+def _packaged_ensemble_arguments(settings: dict[str, Any]) -> list[str]:
+    _backend, args = _packaged_model_arguments(settings)
+    return args
 
 
 def make_icon(state: str) -> Image.Image:
@@ -215,7 +236,7 @@ class AIIMETray:
         self._settings_signature = settings_runtime_signature(self.settings)
         compute_label = COMPUTE_MODES[self.settings["compute_mode"]]
         self.icon.notify(
-            f"Ruri 70M蒸留モデルを読み込んでいます。\n演算: {compute_label}",
+            f"Dual-Encoder 70Mモデル（超低遅延）を読み込んでいます。\n演算: {compute_label}",
             PRODUCT_NAME,
         )
 
@@ -456,14 +477,14 @@ def run_server_mode(pipe_name: str, settings_file: str | Path = SETTINGS_FILE) -
     try:
         from ranker.ranker import main as ranker_main
         product_settings = load_settings(settings_file)
-        ensemble_arguments = _packaged_ensemble_arguments(product_settings)
+        backend, model_arguments = _packaged_model_arguments(product_settings)
         return ranker_main([
             "--pipe", pipe_name,
-            "--backend", "onnx",
+            "--backend", backend,
             "--no-ui",
             "--status-file", str(STATUS_FILE),
             "--settings-file", str(settings_file),
-            *ensemble_arguments,
+            *model_arguments,
         ])
     except Exception as exc:
         logging.exception("Ruri server fatal error: %s", exc)
@@ -481,7 +502,10 @@ def main() -> int:
     parser.add_argument("--settings-file", default=str(SETTINGS_FILE))
     parser.add_argument("--from-installer", action="store_true")
     parser.add_argument("--no-ui", action="store_true")
+    parser.add_argument("--check", action="store_true", help="Perform startup self-check and exit immediately")
     args = parser.parse_args()
+    if args.check:
+        return 0
     if args.settings:
         from settings_ui import main as settings_main
         return settings_main(SETTINGS_FILE)

@@ -44,21 +44,19 @@ def staged_asset(local_path, installed_path, output_name):
 
 block_cipher = None
 
+# Keep distribution lightweight and within Windows Installer 2GB limit.
+# ONNX Runtime leverages DirectML (DmlExecutionProvider) for universal GPU acceleration
+# without bundling 2.3GB of redundant CUDA/cuDNN DLLs.
 cuda_binaries = []
-for cuda_package in (
-    'nvidia.cuda_runtime',
-    'nvidia.cuda_nvrtc',
-    'nvidia.cublas',
-    'nvidia.cudnn',
-):
-    cuda_binaries.extend(collect_dynamic_libs(cuda_package))
 
 all_datas = [
+    (staged_asset('build/onnx-model-70m-dual-encoder/dual-encoder-70m-fp16.onnx', 'models/onnx/dual-encoder-70m-fp16.onnx', 'dual-encoder-70m-fp16.onnx'), 'models/onnx'),
+    (staged_asset('build/onnx-model-70m-dual-encoder/dual-encoder-70m-int8.onnx', 'models/onnx/dual-encoder-70m-int8.onnx', 'dual-encoder-70m-int8.onnx'), 'models/onnx'),
     (staged_asset('build/onnx-model-70m-lora3-20260909/ruri-ime-fp16.onnx', 'models/onnx/ruri-ime-lora3-fp16.onnx', 'ruri-ime-lora3-fp16.onnx'), 'models/onnx'),
     (staged_asset('build/onnx-model-70m-lora3-20260909/ruri-ime-int8.onnx', 'models/onnx/ruri-ime-lora3-int8.onnx', 'ruri-ime-lora3-int8.onnx'), 'models/onnx'),
     (staged_asset('build/onnx-model-70m-lora6-preceding-only-20260915/ruri-ime-fp16.onnx', 'models/onnx/ruri-ime-lora6-fp16.onnx', 'ruri-ime-lora6-fp16.onnx'), 'models/onnx'),
     (staged_asset('build/onnx-model-70m-lora6-preceding-only-20260915/ruri-ime-int8.onnx', 'models/onnx/ruri-ime-lora6-int8.onnx', 'ruri-ime-lora6-int8.onnx'), 'models/onnx'),
-    (asset('build/onnx-model-70m/tokenizer.json', 'models/onnx/tokenizer.json'), 'models/onnx'),
+    (asset('build/onnx-model-70m-dual-encoder/tokenizer.json', 'models/onnx/tokenizer.json'), 'models/onnx'),
     (asset('data/massive_homophone_database.json', 'data/massive_homophone_database.json'), 'data'),
     ('PRIVACY.md', 'documents'),
     ('LICENSE', 'documents'),
@@ -87,15 +85,12 @@ all_hidden = [
     'onboarding_ui',
     'ranker.ranker',
     'ranker.onnx_ranker',
+    'ranker.onnx_dual_encoder_ranker',
     'ranker.lexicon',
     'ranker.scoring',
     'ranker.protocol',
     'ranker.loading_ui',
     'client.windows_pipe',
-    'nvidia.cuda_runtime',
-    'nvidia.cuda_nvrtc',
-    'nvidia.cublas',
-    'nvidia.cudnn',
 ]
 
 a = Analysis(
@@ -114,12 +109,18 @@ a = Analysis(
         'aiohttp', 'aiofiles', 'gradio', 'gradio_client', 'openai', 'typer',
         'soundfile', 'torchaudio', 'torchvision', 'trio', 'anyio', 'httpx', 'httpcore',
         'peft', 'tensorboard', 'huggingface_hub', 'requests',
+        'pkg_resources', 'setuptools', 'onnxruntime.transformers',
     ],
     win_no_prefer_redirects=False,
     win_private_assemblies=False,
     cipher=block_cipher,
     noarchive=False,
 )
+
+# Strip unnecessary heavy CUDA/cuDNN/TensorRT DLLs (1.3GB+) pulled in by onnxruntime-gpu hook.
+# DirectML (DmlExecutionProvider) provides universal, lightweight DirectX 12 GPU acceleration.
+heavy_prefixes = ('cublas', 'cudnn', 'cufft', 'curand', 'cusolver', 'cusparse', 'nvrtc', 'onnxruntime_providers_cuda', 'onnxruntime_providers_tensorrt')
+a.binaries = [b for b in a.binaries if not any(Path(b[0]).name.lower().startswith(p) for p in heavy_prefixes)]
 
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 

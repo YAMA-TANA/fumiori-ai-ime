@@ -24,6 +24,8 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Python tests failed' }
   python -m PyInstaller --noconfirm --clean ai_ime_tray.spec
   if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed' }
+  $CheckProcess = Start-Process (Join-Path $RepoRoot 'dist\YamatanaAIIME\YamatanaAIIME.exe') -ArgumentList '--check' -Wait -PassThru
+  if ($CheckProcess.ExitCode -ne 0) { throw "PyInstaller executable startup verification failed with exit code $($CheckProcess.ExitCode)" }
 
   & (Join-Path $PSScriptRoot 'prepare_mozc_source.ps1') -SkipDependencyDownload:$SkipMozcDependencies
   if (-not $?) { throw 'Mozc source preparation failed' }

@@ -652,8 +652,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     mode.add_argument("--once", action="store_true", help="process one stdio request and exit")
     mode.add_argument("--pipe", metavar="NAME", help="Windows Named Pipe name")
     parser.add_argument(
-        "--backend", choices=("rule", "qwen", "ruri", "onnx"), default="onnx",
-        help="candidate scoring backend (default: self-contained ONNX Ruri)",
+        "--backend", choices=("rule", "qwen", "ruri", "onnx", "dual_encoder"), default="dual_encoder",
+        help="candidate scoring backend (default: self-contained Dual-Encoder 70M ONNX)",
     )
     parser.add_argument(
         "--model-name", default="cl-nagoya/ruri-v3-reranker-310m",
@@ -728,6 +728,24 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                     "Qwen warmup completed in %.1f ms; pipe is ready",
                     (time.perf_counter() - warmup_started) * 1000.0,
                 )
+        elif args.backend == "dual_encoder":
+            try:
+                from .onnx_dual_encoder_ranker import OnnxDualEncoderIMEReranker
+            except ImportError:
+                from ranker.onnx_dual_encoder_ranker import OnnxDualEncoderIMEReranker
+            load_started = time.perf_counter()
+            product_settings = load_settings(args.settings_file)
+            selected_model = args.ensemble_model[0] if args.ensemble_model else None
+            ranker = OnnxDualEncoderIMEReranker(
+                settings=product_settings,
+                model_path=selected_model,
+            )
+            LOG.info(
+                "Dual-Encoder 70M ONNX model loaded in %.1f ms (device=%s, model=%s)",
+                (time.perf_counter() - load_started) * 1000.0,
+                ranker.device,
+                ranker.model_path,
+            )
         elif args.backend == "onnx":
             try:
                 from .onnx_ranker import OnnxRuriReranker
@@ -773,7 +791,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         LOG.error("could not start %s backend: %s", args.backend, exc)
         return 2
     if args.pipe:
-        if args.backend in {"ruri", "onnx"}:
+        if args.backend in {"ruri", "onnx", "dual_encoder"}:
             # A current Mozc process marks Space/Convert as explicit. Requests
             # from older binaries have no marker and are treated as live input:
             # return Mozc order immediately until the same request is stable
@@ -789,7 +807,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         status = RuntimeStatus(
             args.status_file, args.backend, str(model), normalize_windows_pipe_name(args.pipe)
         )
-        if args.backend in {"ruri", "onnx"}:
+        if args.backend in {"ruri", "onnx", "dual_encoder"}:
             status.write(
                 compute_device=str(getattr(ranker, "device", "unknown")),
                 document_domain=str(getattr(ranker, "document_domain", "general")),
