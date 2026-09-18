@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import re
 import sys
+import threading
 import time
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
@@ -183,62 +184,80 @@ class OnnxDualEncoderIMEReranker:
 
         # In-memory candidate embedding cache (word -> 384-dim numpy array)
         self.candidate_cache: dict[str, np.ndarray] = {}
-        # Context vectors are keyed by the complete current context batch.  A
-        # new signature clears the previous generation so a stale predictor
-        # context can never be reused for a later Space conversion.
+        # Context vectors are keyed by their exact safe context string.  A
+        # changed context therefore cannot reuse a stale vector, while a
+        # batch-size change does not evict an identical prefetched context.
         self.context_cache: dict[str, np.ndarray] = {}
         self.context_cache_signature: tuple[str, ...] = ()
+        self._cache_lock = threading.RLock()
+        self._model_lock = threading.Lock()
+        self._prefetch_state_lock = threading.Lock()
+        self._pending_prefetch: Optional[Dict[str, Any]] = None
+        self._prefetch_worker: Optional[threading.Thread] = None
 
     def encode_texts(self, texts: list[str], max_length: int = 48) -> np.ndarray:
         """Encode a batch of texts into normalized embedding vectors (N x 384)."""
         if not texts:
             return np.empty((0, 384), dtype=np.float32)
 
-        self.tokenizer.enable_truncation(max_length=max_length)
-        encodings = self.tokenizer.encode_batch(texts)
-        input_ids = np.array([e.ids for e in encodings], dtype=np.int64)
-        attention_mask = np.array([e.attention_mask for e in encodings], dtype=np.int64)
+        # Tokenizer truncation is mutable, so serialize model calls while
+        # allowing the pipe thread and the latest-prefetch worker to coexist.
+        with self._model_lock:
+            self.tokenizer.enable_truncation(max_length=max_length)
+            encodings = self.tokenizer.encode_batch(texts)
+            input_ids = np.array([e.ids for e in encodings], dtype=np.int64)
+            attention_mask = np.array([e.attention_mask for e in encodings], dtype=np.int64)
 
-        ort_inputs = {
-            "input_ids": input_ids,
-            "attention_mask": attention_mask,
-        }
-        outputs = self.session.run(["embeddings"], ort_inputs)[0]
+            ort_inputs = {
+                "input_ids": input_ids,
+                "attention_mask": attention_mask,
+            }
+            outputs = self.session.run(["embeddings"], ort_inputs)[0]
         return outputs.astype(np.float32)
 
     def preload_candidates(self, words: Sequence[str]) -> None:
         """Pre-compute and cache candidate embeddings in resident memory."""
-        missing = [w for w in set(words) if w not in self.candidate_cache]
+        with self._cache_lock:
+            missing = [w for w in set(words) if w and w not in self.candidate_cache]
         if not missing:
             return
         embeddings = self.encode_texts(missing, max_length=16)
-        for w, emb in zip(missing, embeddings):
-            self.candidate_cache[w] = emb
+        with self._cache_lock:
+            for w, emb in zip(missing, embeddings):
+                self.candidate_cache[w] = emb
 
     def get_candidate_embedding(self, word: str) -> np.ndarray:
         """Get candidate embedding with transparent in-memory caching."""
-        if word in self.candidate_cache:
-            return self.candidate_cache[word]
+        with self._cache_lock:
+            cached = self.candidate_cache.get(word)
+        if cached is not None:
+            return cached
         emb = self.encode_texts([word], max_length=16)[0]
-        self.candidate_cache[word] = emb
+        with self._cache_lock:
+            self.candidate_cache[word] = emb
         return emb
 
     def _get_context_vectors(self, context_queries: Sequence[str]) -> np.ndarray:
         """Return cached context vectors, encoding only cache misses."""
         queries = tuple(str(query) for query in context_queries)
-        if queries != self.context_cache_signature:
-            self.context_cache.clear()
+        with self._cache_lock:
             self.context_cache_signature = queries
-
-        missing = [query for query in dict.fromkeys(queries)
-                   if query not in self.context_cache]
+            missing = [query for query in dict.fromkeys(queries)
+                       if query not in self.context_cache]
         if missing:
             embeddings = self.encode_texts(missing, max_length=self.context_chars)
-            for query, embedding in zip(missing, embeddings):
-                self.context_cache[query] = embedding
+            with self._cache_lock:
+                for query, embedding in zip(missing, embeddings):
+                    self.context_cache[query] = embedding
         if not queries:
             return np.empty((0, 384), dtype=np.float32)
-        return np.stack([self.context_cache[query] for query in queries], axis=0)
+        with self._cache_lock:
+            return np.stack([self.context_cache[query] for query in queries], axis=0)
+
+    def _clear_context_cache(self) -> None:
+        with self._cache_lock:
+            self.context_cache.clear()
+            self.context_cache_signature = ()
 
     def compute_length_and_mora_penalty(self, word: str, reading: str) -> float:
         """Penalize candidate words whose character length departs from expected reading."""
@@ -398,8 +417,7 @@ class OnnxDualEncoderIMEReranker:
 
         # Zero or ambiguous context safety gate
         if not context_query or content_signal_length(context_query) < 2:
-            self.context_cache.clear()
-            self.context_cache_signature = ()
+            self._clear_context_cache()
             clean_fallback = [
                 {
                     "id": str(c["id"]),
@@ -439,9 +457,9 @@ class OnnxDualEncoderIMEReranker:
         if not segments:
             return {"request_id": request_id, "segments": []}
 
-        # 1. Collect safe context for every segment.  Keep the dummy query in
-        # the cache signature as well, so moving to an empty context clears
-        # the previous generation deterministically.
+        # 1. Collect safe context for every segment.  Keep a stable query key
+        # for each segment so a batch-size change does not evict a still-valid
+        # prefetched context vector.
         context_queries = []
         safe_prefixes = []
         for seg in segments:
@@ -536,3 +554,30 @@ class OnnxDualEncoderIMEReranker:
                 for seg in segments
             ],
         }
+
+    def prefetch_batch_async(self, request: Dict[str, Any]) -> None:
+        """Queue only the newest predictor prefetch without blocking the pipe."""
+        with self._prefetch_state_lock:
+            self._pending_prefetch = request
+            if self._prefetch_worker is not None and self._prefetch_worker.is_alive():
+                return
+            self._prefetch_worker = threading.Thread(
+                target=self._run_pending_prefetch,
+                name="yamatana-prefetch",
+                daemon=True,
+            )
+            self._prefetch_worker.start()
+
+    def _run_pending_prefetch(self) -> None:
+        while True:
+            with self._prefetch_state_lock:
+                request = self._pending_prefetch
+                self._pending_prefetch = None
+            if request is None:
+                with self._prefetch_state_lock:
+                    self._prefetch_worker = None
+                return
+            try:
+                self.prefetch_batch(request)
+            except Exception:
+                LOG.exception("Dual-Encoder prefetch failed")
