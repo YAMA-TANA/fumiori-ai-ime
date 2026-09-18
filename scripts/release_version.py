@@ -6,8 +6,8 @@ import re
 from pathlib import Path
 
 
-DEFAULT_PRODUCT_VERSION = "2.0.10.0"
-DEFAULT_RELEASE_LABEL = "2.0.10-beta"
+DEFAULT_PRODUCT_VERSION = "2.1.0.0"
+DEFAULT_RELEASE_LABEL = "2.1.0-beta"
 _VERSION_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
 
 
