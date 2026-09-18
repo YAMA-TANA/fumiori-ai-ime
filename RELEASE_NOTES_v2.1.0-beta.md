@@ -37,3 +37,30 @@
 ## Beta notice
 
 これは未署名のベータ版MSIです。インストール時にWindowsのSmartScreenまたは発行元に関する警告が表示される場合があります。
+
+---
+
+## 2026-09-19 production hotfix
+
+- RealtimeDecoder の内部リクエストが `request_type=CONVERSION` のまま dispatch されるため、AI rewriter の capability を `CONVERSION | PREDICTION` に修正しました。入力中の context prefetch が実際の Mozc 経路で呼ばれます。
+- 入力中の文脈ベクトル先読み、Space 時の候補内積、文脈変更時のキャッシュ破棄を維持しています。
+- prefetch を名前付きパイプの受付処理から切り離し、最新の入力だけをバックグラウンドで処理します。Space 時はキャッシュ参照と内積計算を優先します。
+- r4 では `mozc_broker`、`mozc_server`、`mozc_renderer`、`mozc_cache_service` を安全に停止し、プロセス終了とファイルロック解除を確認してからコピーします。コピー自体もリトライします。
+
+### Existing installation
+
+既存 MSI を使っている場合は、次の hotfix ZIP を展開し、正規パスまたは互換パスのスクリプトを管理者 PowerShell から実行してください。
+
+- 推奨: `Yamatana-AI-IME-v2.1.0-beta-hotfix-20260919-r4.zip`
+- SHA-256: `2489922279A7047EC4C1989FD6B923DD5A10D954D85A7C3FEE0F0699C5C94747`
+- 正規スクリプト: `scripts\apply_hotfix.ps1`
+- 互換スクリプト: `scripts\apply\_hotfix.ps1`
+- 旧 20260918 / 20260919 / r2 / r3 ZIP は使用しないでください。
+
+実行コマンド:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\lotof\Videos\research\live2d\yamatana-ai-ime\build\hotfix-20260919-r4\scripts\apply_hotfix.ps1"
+```
+
+この hotfix は現在の MSI と同じランタイムに対する差分配布です。完全な MSI の再生成は WiX の巨大 CAB bind 工程が停止するため、今回の Release では hotfix を追加配布しています。
