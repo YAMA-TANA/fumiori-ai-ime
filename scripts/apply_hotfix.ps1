@@ -41,29 +41,10 @@ $processNames = @(
     'mozc_renderer'
 )
 
-# The broker can respawn mozc_server while the files are being replaced. Stop
-# the tray/broker first, then stop any remaining Mozc processes and wait until
-# Windows reports that they are actually gone.
-foreach ($name in @('YamatanaAIIME', 'mozc_broker')) {
-    Get-Process -Name $name -ErrorAction SilentlyContinue |
-        Stop-Process -Force -ErrorAction SilentlyContinue
-    & "$env:SystemRoot\System32\taskkill.exe" /F /T /IM "$name.exe" 2>$null | Out-Null
-}
-Get-Process -Name $processNames -ErrorAction SilentlyContinue |
-    Stop-Process -Force -ErrorAction SilentlyContinue
-
-$processDeadline = (Get-Date).AddSeconds(20)
-do {
-    $running = @(Get-Process -Name $processNames -ErrorAction SilentlyContinue)
-    if ($running.Count -eq 0) {
-        break
+function Stop-LockingProcesses {
+    foreach ($name in $processNames) {
+        & "$env:SystemRoot\System32\taskkill.exe" /F /T /IM "$name.exe" 2>$null | Out-Null
     }
-    Start-Sleep -Milliseconds 250
-} while ((Get-Date) -lt $processDeadline)
-
-if ($running.Count -ne 0) {
-    $names = ($running | Select-Object -ExpandProperty ProcessName -Unique) -join ', '
-    throw "Could not stop IME processes before replacing hotfix files: $names"
 }
 
 function Copy-HotfixFile {
@@ -90,11 +71,14 @@ function Copy-HotfixFile {
             if ($attempt -eq $attempts) {
                 throw "Could not replace '$Destination' after $attempts attempts. The file is still locked or inaccessible. Last error: $($_.Exception.Message)"
             }
+            Stop-LockingProcesses
             Start-Sleep -Milliseconds 250
         }
     }
 }
 
+Stop-LockingProcesses
+Start-Sleep -Milliseconds 250
 Copy-HotfixFile -Source $RuntimeSource -Destination $RuntimeTarget
 Copy-HotfixFile -Source $ServerSource -Destination $ServerTarget
 
