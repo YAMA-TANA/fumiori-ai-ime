@@ -4,6 +4,8 @@ Fumiori AI IMEは、Mozcの変換候補をローカルAI rerankerで並べ替え
 
 > **Beta / 未署名** — 現在公開中のBetaは検証用の未署名ビルドです。Windowsの警告が表示される場合があります。SignPath FoundationによるOSSコード署名の申請準備中であり、署名済みであるかのような表示は行いません。
 
+> **最新リリース: v2.0.10-beta** — [GitHub Releaseからダウンロード](https://github.com/YAMA-TANA/yamatana-ai-ime/releases/tag/v2.0.10-beta)できます。Fumiori AI IMEの表示名、本体のドット絵ゲーム風候補ウィンドウ、`CHAIN +1` の連鎖演出を含むベータ版です。
+
 ## まず試してほしいこと
 
 同じ読みでも、文脈で漢字が変わる日本語入力を、AIに選ばせるIMEです。
@@ -60,7 +62,7 @@ Mozcが作った候補をAIが読み直すため、AIが勝手に文章を生成
 
 ## インストール
 
-1. [Releases](https://github.com/YAMA-TANA/yamatana-ai-ime/releases) から最新の `.msi` と `SHA256SUMS.txt` をダウンロードします。
+1. [v2.0.10-betaのReleaseページ](https://github.com/YAMA-TANA/yamatana-ai-ime/releases/tag/v2.0.10-beta)から `Yamatana-AI-IME-MOZC-Ver-2.0.10-beta-x64.msi` と `SHA256SUMS.txt` をダウンロードします。新しい版が公開された場合は [Releases一覧](https://github.com/YAMA-TANA/yamatana-ai-ime/releases) を確認してください。
 2. PowerShellで `Get-FileHash .\Yamatana-AI-IME-MOZC-Ver-<version>-x64.msi -Algorithm SHA256` を実行し、公開ハッシュと一致することを確認します。配布ファイル名は既存インストールとの互換性のため、旧内部名を維持しています。
 3. `Install-Yamatana-AI-IME.cmd` をダブルクリックしてインストールします。画面にMSI終了コードが表示され、`3010` または `1641` の場合は「インストール成功・PCの再起動が必要」と表示されます。MSIを直接実行する場合は、完了後のログまたは終了コードを確認してください。
 4. サインアウトまたは再起動後、トレイとAIモデルが起動します。`Win + Space` で **Fumiori AI IME** を選択します。
