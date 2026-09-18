@@ -31,6 +31,7 @@
 ## 配布物
 
 - `Yamatana-AI-IME-MOZC-Ver-2.1.0-beta-x64.msi`
+- `Yamatana-AI-IME-v2.1.0-beta-hotfix-20260919-r4.zip`（推奨。非同期プリフェッチ＋Mozcプロセスのロック解除待ち／リトライ対応）
 - `SHA256SUMS.txt`
 
 ## Beta notice
