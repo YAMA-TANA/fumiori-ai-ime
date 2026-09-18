@@ -39,7 +39,6 @@ $processNames = @(
     'mozc_broker'
     'mozc_server'
     'mozc_renderer'
-    'mozc_cache_service'
 )
 
 # The broker can respawn mozc_server while the files are being replaced. Stop
