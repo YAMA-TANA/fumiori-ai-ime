@@ -23,3 +23,38 @@ def test_process_line_dual_encoder():
     assert resp['candidates'][0]['id'] == 'c2'
     assert resp['candidates'][0]['rank'] == 1
 
+
+def test_process_line_prefetch_does_not_call_candidate_ranker():
+    class PrefetchOnly:
+        def __init__(self):
+            self.calls = 0
+
+        def prefetch_batch(self, request):
+            self.calls += 1
+            assert request['segments'][0]['candidates'][0]['text'] == ''
+            return {
+                'request_id': request['request_id'],
+                'segments': [{
+                    'id': request['segments'][0]['id'],
+                    'winner_id': request['segments'][0]['candidates'][0]['id'],
+                    'confidence': 0.0,
+                }],
+            }
+
+    ranker = PrefetchOnly()
+    req = {
+        'request_id': 'mozc-prefetch-1',
+        'inference_trigger': 'prefetch',
+        'segments': [{
+            'id': 's0',
+            'preceding_text': '月と地球の距離を',
+            'following_text': '',
+            'read': 'はかる',
+            'candidates': [{'id': 'c0', 'text': '', 'rank': 1}],
+        }],
+    }
+    response = process_line(
+        (json.dumps(req, ensure_ascii=False) + '\n').encode('utf-8'), ranker
+    )
+    assert ranker.calls == 1
+    assert json.loads(response.decode('utf-8'))['segments'][0]['confidence'] == 0.0

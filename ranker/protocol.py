@@ -71,8 +71,10 @@ def validate_request(message: Any) -> Dict[str, Any]:
         if "inference_trigger" in message
         else "interactive"
     )
-    if inference_trigger not in {"explicit", "interactive"}:
-        raise ProtocolError("inference_trigger must be explicit or interactive")
+    if inference_trigger not in {"explicit", "interactive", "prefetch"}:
+        raise ProtocolError(
+            "inference_trigger must be explicit, interactive, or prefetch"
+        )
     reading = _string(message["read"], "read", max_bytes=512)
     candidates = message["candidates"]
     if not isinstance(candidates, list) or not candidates:
@@ -136,8 +138,10 @@ def validate_batch_request(message: Any) -> Dict[str, Any]:
     inference_trigger = _string(
         message["inference_trigger"], "inference_trigger", max_bytes=16
     )
-    if inference_trigger not in {"explicit", "interactive"}:
-        raise ProtocolError("inference_trigger must be explicit or interactive")
+    if inference_trigger not in {"explicit", "interactive", "prefetch"}:
+        raise ProtocolError(
+            "inference_trigger must be explicit, interactive, or prefetch"
+        )
 
     segments = message["segments"]
     if not isinstance(segments, list) or not segments:

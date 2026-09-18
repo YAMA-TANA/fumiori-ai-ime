@@ -76,3 +76,11 @@ def test_directional_hard_negative_frames_cover_numeric_and_action_phrases():
     assert contextual_candidate_bonus("申請書を今月15日", "出す", "までに") >= 2.6
     assert contextual_candidate_bonus("前回の成績は", "", "第5位") >= 3.5
     assert contextual_candidate_bonus("集計結果では何が", "", "一位") >= 3.5
+
+
+def test_homophone_frames_cover_measurement_and_rehabilitation_examples():
+    assert contextual_candidate_bonus("月と地球の距離を", "", "測る") >= 1.65
+    assert contextual_candidate_bonus("ストップウォッチで時間を", "", "計る") >= 1.75
+    assert contextual_candidate_bonus("毎朝、体重を", "", "量る") >= 1.75
+    assert contextual_candidate_bonus("刑務所を出たあと、指導員は彼の", "", "更生") >= 2.20
+    assert contextual_candidate_bonus("私の庭の", "", "花") >= 1.25

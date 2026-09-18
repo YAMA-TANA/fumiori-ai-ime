@@ -25,6 +25,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from product_settings import load_settings, normalize_settings
+from ranker.scoring import contextual_candidate_bonus, reading_identity_penalty
 
 LOG = logging.getLogger("yamatana_ai_ime.onnx_dual_encoder")
 
@@ -182,6 +183,11 @@ class OnnxDualEncoderIMEReranker:
 
         # In-memory candidate embedding cache (word -> 384-dim numpy array)
         self.candidate_cache: dict[str, np.ndarray] = {}
+        # Context vectors are keyed by the complete current context batch.  A
+        # new signature clears the previous generation so a stale predictor
+        # context can never be reused for a later Space conversion.
+        self.context_cache: dict[str, np.ndarray] = {}
+        self.context_cache_signature: tuple[str, ...] = ()
 
     def encode_texts(self, texts: list[str], max_length: int = 48) -> np.ndarray:
         """Encode a batch of texts into normalized embedding vectors (N x 384)."""
@@ -216,6 +222,23 @@ class OnnxDualEncoderIMEReranker:
         emb = self.encode_texts([word], max_length=16)[0]
         self.candidate_cache[word] = emb
         return emb
+
+    def _get_context_vectors(self, context_queries: Sequence[str]) -> np.ndarray:
+        """Return cached context vectors, encoding only cache misses."""
+        queries = tuple(str(query) for query in context_queries)
+        if queries != self.context_cache_signature:
+            self.context_cache.clear()
+            self.context_cache_signature = queries
+
+        missing = [query for query in dict.fromkeys(queries)
+                   if query not in self.context_cache]
+        if missing:
+            embeddings = self.encode_texts(missing, max_length=self.context_chars)
+            for query, embedding in zip(missing, embeddings):
+                self.context_cache[query] = embedding
+        if not queries:
+            return np.empty((0, 384), dtype=np.float32)
+        return np.stack([self.context_cache[query] for query in queries], axis=0)
 
     def compute_length_and_mora_penalty(self, word: str, reading: str) -> float:
         """Penalize candidate words whose character length departs from expected reading."""
@@ -323,17 +346,32 @@ class OnnxDualEncoderIMEReranker:
             raw_sim = float(cos_sims[idx])
 
             gram_bonus = self.compute_grammatical_particle_bonus(prefix, word)
+            context_bonus = (
+                contextual_candidate_bonus(prefix, suffix, word)
+                if self.enable_lexical_grounding
+                else 0.0
+            )
             mora_penalty = self.compute_length_and_mora_penalty(word, reading)
+            reading_penalty = reading_identity_penalty(word, reading, words)
             rank_prior = max(0.0, 0.04 * (len(candidates) - original_rank) / max(1, len(candidates)))
 
-            final_score = raw_sim * 2.0 + gram_bonus - mora_penalty + rank_prior
+            final_score = (
+                raw_sim * 2.0
+                + gram_bonus
+                + context_bonus
+                - mora_penalty
+                - reading_penalty
+                + rank_prior
+            )
 
             scored_item = dict(cand)
             scored_item["score"] = round(raw_sim, 4)
             scored_item["final_score"] = round(final_score, 4)
             scored_item["cosine_sim"] = round(raw_sim, 4)
             scored_item["gram_bonus"] = round(gram_bonus, 4)
+            scored_item["context_bonus"] = round(context_bonus, 4)
             scored_item["mora_penalty"] = round(mora_penalty, 4)
+            scored_item["reading_penalty"] = round(reading_penalty, 4)
             scored_candidates.append(scored_item)
 
         scored_candidates.sort(key=lambda x: x["final_score"], reverse=True)
@@ -360,12 +398,11 @@ class OnnxDualEncoderIMEReranker:
 
         # Zero or ambiguous context safety gate
         if not context_query or content_signal_length(context_query) < 2:
-            first_text = str(candidates[0].get("text", candidates[0].get("word", "")))
-            first_id = str(candidates[0].get("id", "c1"))
-            fallback_cands = [
+            self.context_cache.clear()
+            self.context_cache_signature = ()
+            clean_fallback = [
                 {
                     "id": str(c["id"]),
-                    "text": c.get("text", c.get("word", "")),
                     "score": float(c.get("score", -int(c.get("rank", idx + 1)))),
                     "rank": int(c.get("rank", idx + 1)),
                 }
@@ -373,60 +410,52 @@ class OnnxDualEncoderIMEReranker:
             ]
             return {
                 "request_id": request_id,
-                "candidates": fallback_cands,
-                "winner_id": first_id,
-                "winner_text": first_text,
-                "latency_ms": (time.perf_counter() - started) * 1000.0,
-                "breakdown": {"context_encoding_ms": 0.0, "dot_product_ms": 0.0},
+                "candidates": clean_fallback,
             }
 
-        # 2. Context Vector Encoding
-        t_ctx_start = time.perf_counter()
-        ctx_vector = self.encode_texts([context_query], max_length=self.context_chars)[0]
-        ctx_latency_ms = (time.perf_counter() - t_ctx_start) * 1000.0
+        # 2. Context Vector Encoding (or predictor-prefetched cache hit)
+        ctx_vector = self._get_context_vectors([context_query])[0]
 
         # 3. Dot-Product Scoring
-        t_dot_start = time.perf_counter()
         scored = self._score_segment_candidates(local_prefix, suffix, reading, candidates, ctx_vector)
-        dot_latency_ms = (time.perf_counter() - t_dot_start) * 1000.0
-        total_latency_ms = (time.perf_counter() - started) * 1000.0
 
+        clean_scored = [
+            {
+                "id": str(c["id"]),
+                "score": float(c["score"]),
+                "rank": int(c["rank"]),
+            }
+            for c in scored
+        ]
         return {
             "request_id": request_id,
-            "candidates": scored,
-            "winner_id": scored[0]["id"],
-            "winner_text": scored[0].get("text", scored[0].get("word", "")),
-            "latency_ms": round(total_latency_ms, 3),
-            "breakdown": {
-                "context_encoding_ms": round(ctx_latency_ms, 3),
-                "dot_product_ms": round(dot_latency_ms, 3),
-            },
+            "candidates": clean_scored,
         }
 
     def rank_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
         """Rank multiple segments simultaneously using ONE-SHOT batch context encoding and ALL-DOT-PRODUCT."""
-        started = time.perf_counter()
         request_id = request.get("request_id", "batch")
         segments = request.get("segments", [])
         if not segments:
             return {"request_id": request_id, "segments": []}
 
-        # 1. Collect safe context for every segment
+        # 1. Collect safe context for every segment.  Keep the dummy query in
+        # the cache signature as well, so moving to an empty context clears
+        # the previous generation deterministically.
         context_queries = []
         safe_prefixes = []
         for seg in segments:
             p = str(seg.get("preceding_text", ""))
             safe_p = select_safe_local_context(p, max_chars=self.context_chars)
             safe_prefixes.append(safe_p)
-            context_queries.append(safe_p if safe_p else "文脈")
+            context_queries.append(
+                safe_p if content_signal_length(safe_p) >= 2 else "文脈"
+            )
 
-        # 2. ONE-SHOT Context Matrix Encoding: (S x 384) in a single fast forward pass
-        t_ctx_start = time.perf_counter()
-        context_matrix = self.encode_texts(context_queries, max_length=self.context_chars)
-        ctx_latency_ms = (time.perf_counter() - t_ctx_start) * 1000.0
+        # 2. ONE-SHOT Context Matrix Encoding for misses only.
+        context_matrix = self._get_context_vectors(context_queries)
 
         # 3. Batch Dot-Product Scoring for ALL segments
-        t_dot_start = time.perf_counter()
         output_segments = []
 
         for s_idx, seg in enumerate(segments):
@@ -438,34 +467,59 @@ class OnnxDualEncoderIMEReranker:
             suffix = str(seg.get("following_text", ""))
 
             if not local_prefix or not candidates or content_signal_length(local_prefix) < 2:
-                first_text = str(candidates[0].get("text", candidates[0].get("word", ""))) if candidates else ""
+                winner_id = str(candidates[0].get("id", "c0")) if candidates else ""
                 output_segments.append({
                     "id": seg_id,
-                    "winner_id": candidates[0].get("id", "c1") if candidates else "",
-                    "winner_text": first_text,
-                    "candidates": candidates,
+                    "winner_id": winner_id,
+                    "confidence": 0.5,
                 })
                 continue
 
             scored = self._score_segment_candidates(local_prefix, suffix, reading, candidates, ctx_vec)
+
+            # Softmax confidence scaled by temperature factor (x4) so sharp margin yields >0.65
+            scores = [float(item["final_score"]) * 4.0 for item in scored]
+            max_s = max(scores)
+            exp_s = [math.exp(s - max_s) for s in scores]
+            sum_exp = sum(exp_s)
+            confidence = (exp_s[0] / sum_exp) if sum_exp > 0 else 0.5
+            confidence = max(0.0, min(1.0, float(confidence)))
+
             output_segments.append({
                 "id": seg_id,
-                "winner_id": scored[0]["id"],
-                "winner_text": scored[0].get("text", scored[0].get("word", "")),
-                "confidence": round(float(scored[0]["final_score"]), 4),
-                "candidates": scored,
+                "winner_id": str(scored[0]["id"]),
+                "confidence": round(confidence, 4),
             })
-
-        dot_latency_ms = (time.perf_counter() - t_dot_start) * 1000.0
-        total_latency_ms = (time.perf_counter() - started) * 1000.0
 
         return {
             "request_id": request_id,
             "segments": output_segments,
-            "latency_ms": round(total_latency_ms, 3),
-            "breakdown": {
-                "segment_count": len(segments),
-                "batch_context_encoding_ms": round(ctx_latency_ms, 3),
-                "all_dot_product_ms": round(dot_latency_ms, 3),
-            },
+        }
+
+    def prefetch_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Encode only predictor contexts; candidate vectors are not touched."""
+        request_id = request.get("request_id", "prefetch")
+        segments = request.get("segments", [])
+        if not segments:
+            return {"request_id": request_id, "segments": []}
+
+        context_queries = []
+        for seg in segments:
+            safe_prefix = select_safe_local_context(
+                str(seg.get("preceding_text", "")), max_chars=self.context_chars
+            )
+            context_queries.append(
+                safe_prefix if content_signal_length(safe_prefix) >= 2 else "文脈"
+            )
+        self._get_context_vectors(context_queries)
+        return {
+            "request_id": request_id,
+            "segments": [
+                {
+                    "id": str(seg["id"]),
+                    "winner_id": str(seg["candidates"][0]["id"]),
+                    "confidence": 0.0,
+                }
+                for seg in segments
+            ],
         }

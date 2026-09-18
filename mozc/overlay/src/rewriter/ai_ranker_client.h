@@ -66,6 +66,11 @@ class Client {
                  int timeout_ms,
                  std::vector<BatchSegmentResult>* results) const;
 
+  // Sends context-only work for predictor realtime conversion.  The request
+  // is write-only from the IME side so model inference never blocks typing.
+  bool PrefetchBatch(const std::vector<BatchSegmentInput>& segments,
+                     int timeout_ms) const;
+
  private:
   std::wstring pipe_name_;
 };

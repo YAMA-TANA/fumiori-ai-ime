@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import ctypes
+import io
 import json
 import logging
 import os
@@ -491,6 +493,80 @@ def run_server_mode(pipe_name: str, settings_file: str | Path = SETTINGS_FILE) -
         return 1
 
 
+def _taskkill_image_except(image_name: str, excluded_pids: set[int]) -> None:
+    """Terminate old installer-owned processes without killing this helper."""
+    if sys.platform != "win32":
+        return
+    try:
+        result = subprocess.run(
+            ["tasklist", "/FI", f"IMAGENAME eq {image_name}", "/FO", "CSV", "/NH"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            check=False,
+        )
+    except OSError:
+        return
+    for row in csv.reader(io.StringIO(result.stdout)):
+        if len(row) < 2 or not row[1].isdigit():
+            continue
+        pid = int(row[1])
+        if pid in excluded_pids:
+            continue
+        subprocess.run(
+            ["taskkill", "/F", "/PID", str(pid), "/T"],
+            capture_output=True,
+            check=False,
+        )
+
+
+def _restart_after_installer(parent_pid: int) -> int:
+    """Replace the old tray/ranker after MSI has copied the new files."""
+    time.sleep(1.0)
+    excluded = {os.getpid(), parent_pid}
+    _taskkill_image_except("YamatanaAIIME.exe", excluded)
+    for image_name in ("mozc_server.exe", "mozc_renderer.exe"):
+        subprocess.run(
+            ["taskkill", "/F", "/IM", image_name, "/T"],
+            capture_output=True,
+            check=False,
+        )
+    time.sleep(0.5)
+    if getattr(sys, "frozen", False):
+        command = [sys.executable, "--start-on"]
+    else:
+        command = [sys.executable, str(ROOT / "ai_ime_tray.py"), "--start-on"]
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    subprocess.Popen(
+        command,
+        cwd=str(ROOT),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=flags,
+    )
+    return 0
+
+
+def _schedule_installer_restart() -> int:
+    """Defer the handoff so MSI can finish before files are reopened."""
+    if getattr(sys, "frozen", False):
+        command = [sys.executable, "--restart-child", str(os.getpid())]
+    else:
+        command = [sys.executable, str(ROOT / "ai_ime_tray.py"), "--restart-child", str(os.getpid())]
+    flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    subprocess.Popen(
+        command,
+        cwd=str(ROOT),
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        creationflags=flags,
+    )
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--server", action="store_true")
@@ -501,11 +577,14 @@ def main() -> int:
     parser.add_argument("--pipe", default=PIPE_NAME)
     parser.add_argument("--settings-file", default=str(SETTINGS_FILE))
     parser.add_argument("--from-installer", action="store_true")
+    parser.add_argument("--restart-child", type=int)
     parser.add_argument("--no-ui", action="store_true")
     parser.add_argument("--check", action="store_true", help="Perform startup self-check and exit immediately")
     args = parser.parse_args()
     if args.check:
         return 0
+    if args.restart_child is not None:
+        return _restart_after_installer(args.restart_child)
     if args.settings:
         from settings_ui import main as settings_main
         return settings_main(SETTINGS_FILE)
@@ -514,6 +593,8 @@ def main() -> int:
         return onboarding_main(force=args.force_onboarding)
     if args.server:
         return run_server_mode(args.pipe, args.settings_file)
+    if args.from_installer and sys.platform == "win32":
+        return _schedule_installer_restart()
     if sys.platform == "win32":
         mutex = ctypes.windll.kernel32.CreateMutexW(None, True, "Mozc_AI_IME_LoRA_Tray")
         if ctypes.get_last_error() == 183:
@@ -521,10 +602,9 @@ def main() -> int:
         globals()["_TRAY_MUTEX"] = mutex
     migrated_legacy_autostart = migrate_legacy_windows_autostart(SETTINGS_FILE)
     AIIMETray(allow_legacy_ranker=migrated_legacy_autostart).run(
-        # The installer passes this flag only on a fresh installation.  Make
-        # it explicit so a missing/old settings file cannot leave the first
-        # launch in the OFF state.
-        start_on=True if (args.start_on or args.from_installer) else None
+        # The installer hands off through --restart-child, so this process is
+        # always a fresh tray instance and can honor the persisted setting.
+        start_on=True if args.start_on else None
     )
     return 0
 

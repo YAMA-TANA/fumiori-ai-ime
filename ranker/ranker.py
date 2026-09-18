@@ -405,7 +405,22 @@ def process_line(line: bytes, ranker: Any) -> Optional[bytes]:
         request = loads_strict(line.decode("utf-8"))
         if isinstance(request, dict) and "segments" in request:
             req_val = validate_batch_request(request)
-            if hasattr(ranker, "rank_batch"):
+            if req_val["inference_trigger"] == "prefetch":
+                if hasattr(ranker, "prefetch_batch"):
+                    response = ranker.prefetch_batch(req_val)
+                else:
+                    response = {
+                        "request_id": req_val["request_id"],
+                        "segments": [
+                            {
+                                "id": segment["id"],
+                                "winner_id": segment["candidates"][0]["id"],
+                                "confidence": 0.0,
+                            }
+                            for segment in req_val["segments"]
+                        ],
+                    }
+            elif hasattr(ranker, "rank_batch"):
                 response = ranker.rank_batch(req_val)
             else:
                 response = _compact_batch_fallback(req_val, ranker)

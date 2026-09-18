@@ -178,6 +178,18 @@ bool ExchangePayload(const std::wstring& pipe_name, const std::string& payload,
   return ok;
 }
 
+bool SendPayloadNoResponse(const std::wstring& pipe_name,
+                           const std::string& payload, int timeout_ms) {
+  if (timeout_ms <= 0) return false;
+  const ULONGLONG deadline =
+      GetTickCount64() + static_cast<ULONGLONG>(timeout_ms);
+  HANDLE pipe = OpenPipeUntil(pipe_name, deadline);
+  if (pipe == INVALID_HANDLE_VALUE) return false;
+  const bool ok = WriteDeadline(pipe, payload, deadline);
+  CloseHandle(pipe);
+  return ok;
+}
+
 bool ParseResponse(const std::string& response, const std::string& request_id,
                    const std::set<std::string>& allowed,
                    std::vector<RankedCandidate>* output) {
@@ -297,6 +309,101 @@ std::string NextRequestId() {
   return id.str();
 }
 
+bool BuildBatchPayload(
+    const std::vector<BatchSegmentInput>& segments,
+    const char* inference_trigger, std::string* request_id,
+    std::string* payload,
+    std::map<std::string, std::set<std::string>>* allowed) {
+  if (inference_trigger == nullptr || request_id == nullptr ||
+      payload == nullptr || allowed == nullptr || segments.empty() ||
+      segments.size() > kMaxSegments) {
+    return false;
+  }
+
+  *request_id = NextRequestId();
+  allowed->clear();
+  std::ostringstream json;
+  json << "{\"request_id\":\"" << *request_id
+       << "\",\"inference_trigger\":\"" << inference_trigger
+       << "\",\"segments\":[";
+  for (size_t segment_index = 0; segment_index < segments.size();
+       ++segment_index) {
+    const BatchSegmentInput& segment = segments[segment_index];
+    if (!SafeId(segment.id) || segment.id.empty() ||
+        !allowed->emplace(segment.id, std::set<std::string>()).second ||
+        segment.candidates.empty() ||
+        segment.candidates.size() > kMaxCandidatesPerSegment ||
+        segment.preceding_text.size() > 32768 ||
+        segment.following_text.size() > 32768 || segment.reading.size() > 512) {
+      return false;
+    }
+    std::string escaped;
+    if (segment_index) json << ',';
+    json << "{\"id\":\"" << segment.id << "\",\"preceding_text\":";
+    if (!EscapeJson(segment.preceding_text, &escaped)) return false;
+    json << '\"' << escaped << "\",\"following_text\":";
+    if (!EscapeJson(segment.following_text, &escaped)) return false;
+    json << '\"' << escaped << "\",\"read\":";
+    if (!EscapeJson(segment.reading, &escaped)) return false;
+    json << '\"' << escaped << "\",\"candidates\":[";
+    for (size_t candidate_index = 0;
+         candidate_index < segment.candidates.size(); ++candidate_index) {
+      const CandidateInput& candidate = segment.candidates[candidate_index];
+      if (!SafeId(candidate.id) || candidate.value.size() > 4096 ||
+          candidate.original_rank != static_cast<int>(candidate_index) + 1 ||
+          !(*allowed)[segment.id].insert(candidate.id).second) {
+        return false;
+      }
+      std::string escaped_id;
+      std::string escaped_value;
+      if (!EscapeJson(candidate.id, &escaped_id) ||
+          !EscapeJson(candidate.value, &escaped_value)) {
+        return false;
+      }
+      if (candidate_index) json << ',';
+      json << "{\"id\":\"" << escaped_id << "\",\"text\":\""
+           << escaped_value << "\",\"rank\":"
+           << candidate.original_rank << '}';
+    }
+    json << "]}";
+  }
+  json << "]}\n";
+  *payload = json.str();
+  return payload->size() <= kMaxRequestBytes;
+}
+
+bool SendBatchRequest(const std::wstring& pipe_name,
+                      const std::vector<BatchSegmentInput>& segments,
+                      const char* inference_trigger, int timeout_ms,
+                      std::vector<BatchSegmentResult>* results) {
+  if (results == nullptr || timeout_ms <= 0) return false;
+  std::string request_id;
+  std::string payload;
+  std::map<std::string, std::set<std::string>> allowed;
+  if (!BuildBatchPayload(segments, inference_trigger, &request_id, &payload,
+                         &allowed)) {
+    return false;
+  }
+  const int budget_ms = std::min(timeout_ms, 3000);
+  std::string response;
+  if (!ExchangePayload(pipe_name, payload, budget_ms, &response)) return false;
+  return ParseBatchResponse(response, request_id, allowed, results);
+}
+
+bool SendPrefetchRequest(const std::wstring& pipe_name,
+                         const std::vector<BatchSegmentInput>& segments,
+                         int timeout_ms) {
+  if (timeout_ms <= 0) return false;
+  std::string request_id;
+  std::string payload;
+  std::map<std::string, std::set<std::string>> allowed;
+  if (!BuildBatchPayload(segments, "prefetch", &request_id, &payload,
+                         &allowed)) {
+    return false;
+  }
+  return SendPayloadNoResponse(pipe_name, payload, std::min(timeout_ms, 100));
+}
+
 }  // namespace
 
 Client::Client(std::wstring pipe_name) : pipe_name_(std::move(pipe_name)) {}
@@ -374,65 +481,13 @@ bool Client::Rank(const std::string& preceding_text,
 bool Client::RankBatch(const std::vector<BatchSegmentInput>& segments,
                        int timeout_ms,
                        std::vector<BatchSegmentResult>* results) const {
-  if (results == nullptr || segments.empty() || segments.size() > kMaxSegments ||
-      timeout_ms <= 0) {
-    return false;
-  }
+  return SendBatchRequest(pipe_name_, segments, "explicit", timeout_ms,
+                          results);
+}
 
-  const int budget_ms = std::min(timeout_ms, 3000);
-  const std::string request_id = NextRequestId();
-  std::ostringstream json;
-  json << "{\"request_id\":\"" << request_id
-       << "\",\"inference_trigger\":\"explicit\",\"segments\":[";
-  std::map<std::string, std::set<std::string>> allowed;
-  for (size_t segment_index = 0; segment_index < segments.size();
-       ++segment_index) {
-    const BatchSegmentInput& segment = segments[segment_index];
-    if (!SafeId(segment.id) || segment.id.empty() ||
-        !allowed.emplace(segment.id, std::set<std::string>()).second ||
-        segment.candidates.empty() ||
-        segment.candidates.size() > kMaxCandidatesPerSegment ||
-        segment.preceding_text.size() > 32768 ||
-        segment.following_text.size() > 32768 || segment.reading.size() > 512) {
-      return false;
-    }
-    std::string escaped;
-    if (segment_index) json << ',';
-    json << "{\"id\":\"" << segment.id << "\",\"preceding_text\":";
-    if (!EscapeJson(segment.preceding_text, &escaped)) return false;
-    json << '\"' << escaped << "\",\"following_text\":";
-    if (!EscapeJson(segment.following_text, &escaped)) return false;
-    json << '\"' << escaped << "\",\"read\":";
-    if (!EscapeJson(segment.reading, &escaped)) return false;
-    json << '\"' << escaped << "\",\"candidates\":[";
-    for (size_t candidate_index = 0;
-         candidate_index < segment.candidates.size(); ++candidate_index) {
-      const CandidateInput& candidate = segment.candidates[candidate_index];
-      if (!SafeId(candidate.id) || candidate.value.size() > 4096 ||
-          candidate.original_rank != static_cast<int>(candidate_index) + 1 ||
-          !allowed[segment.id].insert(candidate.id).second) {
-        return false;
-      }
-      std::string escaped_id;
-      std::string escaped_value;
-      if (!EscapeJson(candidate.id, &escaped_id) ||
-          !EscapeJson(candidate.value, &escaped_value)) {
-        return false;
-      }
-      if (candidate_index) json << ',';
-      json << "{\"id\":\"" << escaped_id << "\",\"text\":\""
-           << escaped_value << "\",\"rank\":" << candidate.original_rank
-           << '}';
-    }
-    json << "]}";
-  }
-  json << "]}\n";
-  const std::string payload = json.str();
-  if (payload.size() > kMaxRequestBytes) return false;
-
-  std::string response;
-  if (!ExchangePayload(pipe_name_, payload, budget_ms, &response)) return false;
-  return ParseBatchResponse(response, request_id, allowed, results);
+bool Client::PrefetchBatch(const std::vector<BatchSegmentInput>& segments,
+                           int timeout_ms) const {
+  return SendPrefetchRequest(pipe_name_, segments, timeout_ms);
 }
 
 }  // namespace ai_ranker
@@ -456,6 +511,9 @@ bool Client::Rank(const std::string&, const std::string&,
 }
 bool Client::RankBatch(const std::vector<BatchSegmentInput>&, int,
                        std::vector<BatchSegmentResult>*) const {
+  return false;
+}
+bool Client::PrefetchBatch(const std::vector<BatchSegmentInput>&, int) const {
   return false;
 }
 }  // namespace ai_ranker

@@ -302,18 +302,25 @@ TEST(AiRewriterTest, RealtimeConversionSkipsAiRanker) {
   EXPECT_EQ(segments.segment(0).candidate(1).value, "鼻");
 }
 
-TEST(AiRewriterTest, PredictorRealtimeMarkerSkipsAiRanker) {
+TEST(AiRewriterTest, PredictorRealtimeMarkerPrefetchesContextOnly) {
   ConversionRequest::Options options;
   options.request_type = ConversionRequest::CONVERSION;
+  options.skip_slow_rewriters = true;
   options.used_in_predictor_realtime_conversion = true;
   const ConversionRequest request =
       ConversionRequestBuilder().SetOptions(std::move(options)).Build();
 
-  AiRewriter rewriter(L"missing-ai-ime-pipe");
-  EXPECT_EQ(rewriter.capability(request), RewriterInterface::NOT_AVAILABLE);
+  const std::wstring pipe_name =
+      L"\\\\.\\pipe\\yamatana_ai_rewriter_prefetch_test";
+  FakeRankerServer server(pipe_name, "c0", "\"inference_trigger\":\"prefetch\"");
+  ASSERT_TRUE(server.valid());
+  AiRewriter rewriter(pipe_name);
+  EXPECT_EQ(rewriter.capability(request),
+            RewriterInterface::CONVERSION | RewriterInterface::PREDICTION);
 
   Segments segments;
   Segment* segment = segments.add_segment();
+  segment->set_key("はな");
   segment->add_candidate()->value = "花";
   segment->add_candidate()->value = "鼻";
   EXPECT_FALSE(rewriter.Rewrite(request, &segments));
@@ -580,7 +587,11 @@ TEST(AiRewriterTest, MultipleSegmentsAreRankedFromLeftToRight) {
 TEST(AiRewriterTest, LongCollapsedPhraseAtSentenceStartUsesAi) {
   const std::wstring pipe_name =
       L"\\\\.\\pipe\\yamatana_ai_rewriter_collapsed_phrase_test";
-  FakeRankerServer server(pipe_name, "c1");
+  FakeRankerServer server(
+      pipe_name, "c1",
+      "\"preceding_text\":\"庭には美しい\",\"following_text\":\"\","
+      "\"read\":\"はな\",\"candidates\":[{\"id\":\"c0\","
+      "\"text\":\"鼻\"");
   ASSERT_TRUE(server.valid());
 
   Segments segments;

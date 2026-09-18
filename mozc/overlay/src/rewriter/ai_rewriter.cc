@@ -263,6 +263,149 @@ size_t SharedCandidateContextChars(absl::string_view left,
   return prefix + suffix;
 }
 
+struct SharedCandidateAffixes {
+  std::string prefix;
+  std::string suffix;
+  size_t prefix_chars = 0;
+  size_t suffix_chars = 0;
+};
+
+std::string JoinUtf8Chars(const std::vector<std::string>& chars, size_t begin,
+                          size_t count) {
+  std::string result;
+  for (size_t i = begin; i < begin + count && i < chars.size(); ++i) {
+    result.append(chars[i]);
+  }
+  return result;
+}
+
+SharedCandidateAffixes SharedCandidateAffixesForSegment(
+    const converter::Segment& segment,
+    const std::vector<size_t>& selected_indices) {
+  SharedCandidateAffixes result;
+  if (selected_indices.size() < 2) return result;
+
+  std::vector<std::vector<std::string>> candidate_chars;
+  candidate_chars.reserve(selected_indices.size());
+  for (const size_t index : selected_indices) {
+    if (index >= segment.candidates_size()) return {};
+    candidate_chars.push_back(
+        Util::SplitStringToUtf8Chars(segment.candidate(index).value));
+  }
+
+  const size_t shortest = std::min_element(
+      candidate_chars.begin(), candidate_chars.end(),
+      [](const auto& left, const auto& right) {
+        return left.size() < right.size();
+      })->size();
+  size_t prefix_chars = shortest;
+  for (size_t position = 0; position < prefix_chars; ++position) {
+    for (size_t candidate = 1; candidate < candidate_chars.size();
+         ++candidate) {
+      if (candidate_chars[0][position] != candidate_chars[candidate][position]) {
+        prefix_chars = position;
+        break;
+      }
+    }
+    if (prefix_chars != shortest && prefix_chars == position) break;
+  }
+
+  size_t suffix_chars = shortest - prefix_chars;
+  for (size_t position = 0; position < suffix_chars; ++position) {
+    for (size_t candidate = 1; candidate < candidate_chars.size();
+         ++candidate) {
+      if (candidate_chars[0][candidate_chars[0].size() - 1 - position] !=
+          candidate_chars[candidate][candidate_chars[candidate].size() - 1 -
+                                    position]) {
+        suffix_chars = position;
+        break;
+      }
+    }
+    if (suffix_chars != shortest - prefix_chars && suffix_chars == position) {
+      break;
+    }
+  }
+
+  if (prefix_chars + suffix_chars < kMinInternalPhraseContextChars) {
+    return {};
+  }
+  result.prefix_chars = prefix_chars;
+  result.suffix_chars = suffix_chars;
+  result.prefix = JoinUtf8Chars(candidate_chars[0], 0, prefix_chars);
+  result.suffix = JoinUtf8Chars(candidate_chars[0],
+                                candidate_chars[0].size() - suffix_chars,
+                                suffix_chars);
+  return result;
+}
+
+std::string CandidateFocusText(absl::string_view value,
+                               const SharedCandidateAffixes& affixes) {
+  if (affixes.prefix_chars == 0 && affixes.suffix_chars == 0) {
+    return std::string(value);
+  }
+  const std::vector<std::string> chars = Util::SplitStringToUtf8Chars(value);
+  if (chars.size() <= affixes.prefix_chars + affixes.suffix_chars) {
+    return std::string(value);
+  }
+  return JoinUtf8Chars(chars, affixes.prefix_chars,
+                       chars.size() - affixes.prefix_chars - affixes.suffix_chars);
+}
+
+std::string AppendIfNotAlreadyAtEnd(std::string base,
+                                    absl::string_view suffix) {
+  if (suffix.empty() ||
+      (base.size() >= suffix.size() &&
+       base.compare(base.size() - suffix.size(), suffix.size(), suffix) == 0)) {
+    return base;
+  }
+  base.append(suffix.data(), suffix.size());
+  return base;
+}
+
+ai_ranker::BatchSegmentInput BuildBatchSegmentInput(
+    const Segments& segments, size_t index, absl::string_view document_prefix,
+    absl::string_view document_suffix) {
+  const converter::Segment& segment = segments.conversion_segment(index);
+  const std::vector<size_t> selected_indices =
+      SelectDistinctCandidateSurfaces(segment);
+  const SharedCandidateAffixes affixes =
+      SharedCandidateAffixesForSegment(segment, selected_indices);
+
+  std::string preceding = ContextBeforeSegment(segments, index, document_prefix);
+  preceding = AppendIfNotAlreadyAtEnd(std::move(preceding), affixes.prefix);
+  std::string following = affixes.suffix;
+  following.append(ContextAfterSegment(segments, index, document_suffix));
+
+  std::vector<ai_ranker::CandidateInput> input;
+  input.reserve(selected_indices.size());
+  for (const size_t candidate_index : selected_indices) {
+    const converter::Candidate& candidate = segment.candidate(candidate_index);
+    input.push_back({"c" + std::to_string(candidate_index),
+                     CandidateFocusText(candidate.value, affixes),
+                     static_cast<int>(input.size() + 1)});
+  }
+  return {"s" + std::to_string(index), std::move(preceding),
+          std::move(following),
+          std::string(segment.key().data(), segment.key().size()),
+          std::move(input)};
+}
+
+std::vector<ai_ranker::BatchSegmentInput> BuildPrefetchBatch(
+    const Segments& segments, absl::string_view document_prefix,
+    absl::string_view document_suffix) {
+  std::vector<ai_ranker::BatchSegmentInput> batch;
+  batch.reserve(segments.conversion_segments_size());
+  for (size_t index = 0; index < segments.conversion_segments_size(); ++index) {
+    ai_ranker::BatchSegmentInput input = BuildBatchSegmentInput(
+        segments, index, document_prefix, document_suffix);
+    // The prefetch wire format reuses the batch schema, but the server ignores
+    // candidate text and computes only context vectors for this trigger.
+    input.candidates = {{"c0", std::string(), 1}};
+    batch.push_back(std::move(input));
+  }
+  return batch;
+}
+
 bool HasCandidateInternalPhraseContext(const converter::Segment& segment) {
   if (segment.candidates_size() < 2) return false;
   const std::vector<size_t> selected =
@@ -376,8 +519,14 @@ bool ApplyWinner(converter::Segment* segment,
 }  // namespace
 
 int AiRewriter::capability(const ConversionRequest& request) const {
-  if (request.options().skip_slow_rewriters ||
-      request.options().used_in_predictor_realtime_conversion) {
+  if (request.options().used_in_predictor_realtime_conversion) {
+    // RealtimeDecoder intentionally keeps request_type=CONVERSION while it
+    // asks the actual converter for the top prediction. MergerRewriter
+    // dispatches by request_type, so returning only PREDICTION silently skips
+    // the context prefetch in the production path.
+    return RewriterInterface::CONVERSION | RewriterInterface::PREDICTION;
+  }
+  if (request.options().skip_slow_rewriters) {
     return RewriterInterface::NOT_AVAILABLE;
   }
   return RewriterInterface::CONVERSION;
@@ -414,11 +563,29 @@ AiRewriter::CheckResizeSegmentsRequest(const ConversionRequest& request,
 
 bool AiRewriter::Rewrite(const ConversionRequest& request,
                          Segments* segments) const {
-  if (request.options().skip_slow_rewriters ||
-      request.options().used_in_predictor_realtime_conversion) {
+  if (segments == nullptr || segments->conversion_segments_size() == 0) {
     return false;
   }
-  if (segments == nullptr || segments->conversion_segments_size() == 0) {
+
+  if (request.options().used_in_predictor_realtime_conversion) {
+    std::string preceding_text(request.context().preceding_text());
+    if (preceding_text.empty()) {
+      preceding_text = segments->history_value();
+    }
+    const std::string trailing_text(request.context().following_text());
+    const std::vector<ai_ranker::BatchSegmentInput> prefetch =
+        BuildPrefetchBatch(*segments, preceding_text, trailing_text);
+    if (!prefetch.empty()) {
+      // The client writes the request and returns without waiting for the
+      // response.  The ranker performs context encoding while Mozc continues
+      // accepting keystrokes; Space will consume the resulting cache.
+      ai_ranker::Client client(pipe_name_);
+      client.PrefetchBatch(prefetch, 25);
+    }
+    return false;
+  }
+
+  if (request.options().skip_slow_rewriters) {
     return false;
   }
 
@@ -476,20 +643,8 @@ bool AiRewriter::Rewrite(const ConversionRequest& request,
     const std::vector<size_t> selected_indices =
         SelectDistinctCandidateSurfaces(*segment);
     if (selected_indices.size() < 2) continue;
-    std::vector<ai_ranker::CandidateInput> input;
-    input.reserve(selected_indices.size());
-    for (const size_t candidate_index : selected_indices) {
-      const converter::Candidate& candidate = segment->candidate(candidate_index);
-      input.push_back({"c" + std::to_string(candidate_index), candidate.value,
-                       static_cast<int>(input.size() + 1)});
-    }
-    batch.push_back({
-        "s" + std::to_string(index),
-        ContextBeforeSegment(*segments, index, preceding_text),
-        ContextAfterSegment(*segments, index, trailing_text),
-        std::string(segment->key().data(), segment->key().size()),
-        std::move(input),
-    });
+    batch.push_back(BuildBatchSegmentInput(*segments, index, preceding_text,
+                                           trailing_text));
     batch_segment_indices.push_back(index);
   }
 
@@ -530,20 +685,9 @@ bool AiRewriter::Rewrite(const ConversionRequest& request,
     const std::vector<size_t> selected_indices =
         SelectDistinctCandidateSurfaces(*segment);
     if (selected_indices.size() < 2) continue;
-    std::vector<ai_ranker::CandidateInput> input;
-    input.reserve(selected_indices.size());
-    for (const size_t candidate_index : selected_indices) {
-      const converter::Candidate& candidate = segment->candidate(candidate_index);
-      input.push_back({"c" + std::to_string(candidate_index), candidate.value,
-                       static_cast<int>(input.size() + 1)});
-    }
-    const std::vector<ai_ranker::BatchSegmentInput> retry = {{
-        batch[batch_index].id,
-        ContextBeforeSegment(*segments, segment_index, preceding_text),
-        ContextAfterSegment(*segments, segment_index, trailing_text),
-        std::string(segment->key().data(), segment->key().size()),
-        std::move(input),
-    }};
+    const std::vector<ai_ranker::BatchSegmentInput> retry = {
+        BuildBatchSegmentInput(*segments, segment_index, preceding_text,
+                               trailing_text)};
     std::vector<ai_ranker::BatchSegmentResult> retry_results;
     if (!client.RankBatch(retry, RemainingBudgetMs(deadline), &retry_results) ||
         retry_results.size() != 1) {
