@@ -34,12 +34,70 @@ foreach ($source in @($RuntimeSource, $ServerSource)) {
     }
 }
 
-Get-Process -Name YamatanaAIIME,mozc_server,mozc_renderer -ErrorAction SilentlyContinue |
-    Stop-Process -Force
-Start-Sleep -Seconds 2
+$processNames = @(
+    'YamatanaAIIME'
+    'mozc_broker'
+    'mozc_server'
+    'mozc_renderer'
+    'mozc_cache_service'
+)
 
-Copy-Item -LiteralPath $RuntimeSource -Destination $RuntimeTarget -Force
-Copy-Item -LiteralPath $ServerSource -Destination $ServerTarget -Force
+# The broker can respawn mozc_server while the files are being replaced. Stop
+# the tray/broker first, then stop any remaining Mozc processes and wait until
+# Windows reports that they are actually gone.
+foreach ($name in @('YamatanaAIIME', 'mozc_broker')) {
+    Get-Process -Name $name -ErrorAction SilentlyContinue |
+        Stop-Process -Force -ErrorAction SilentlyContinue
+    & "$env:SystemRoot\System32\taskkill.exe" /F /T /IM "$name.exe" 2>$null | Out-Null
+}
+Get-Process -Name $processNames -ErrorAction SilentlyContinue |
+    Stop-Process -Force -ErrorAction SilentlyContinue
+
+$processDeadline = (Get-Date).AddSeconds(20)
+do {
+    $running = @(Get-Process -Name $processNames -ErrorAction SilentlyContinue)
+    if ($running.Count -eq 0) {
+        break
+    }
+    Start-Sleep -Milliseconds 250
+} while ((Get-Date) -lt $processDeadline)
+
+if ($running.Count -ne 0) {
+    $names = ($running | Select-Object -ExpandProperty ProcessName -Unique) -join ', '
+    throw "Could not stop IME processes before replacing hotfix files: $names"
+}
+
+function Copy-HotfixFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination
+    )
+
+    $attempts = 40
+    for ($attempt = 1; $attempt -le $attempts; $attempt++) {
+        try {
+            if (Test-Path -LiteralPath $Destination) {
+                $stream = [System.IO.File]::Open(
+                    $Destination,
+                    [System.IO.FileMode]::Open,
+                    [System.IO.FileAccess]::ReadWrite,
+                    [System.IO.FileShare]::None
+                )
+                $stream.Dispose()
+            }
+            Copy-Item -LiteralPath $Source -Destination $Destination -Force -ErrorAction Stop
+            return
+        } catch {
+            if ($attempt -eq $attempts) {
+                throw "Could not replace '$Destination' after $attempts attempts. The file is still locked or inaccessible. Last error: $($_.Exception.Message)"
+            }
+            Start-Sleep -Milliseconds 250
+        }
+    }
+}
+
+Copy-HotfixFile -Source $RuntimeSource -Destination $RuntimeTarget
+Copy-HotfixFile -Source $ServerSource -Destination $ServerTarget
 
 $check = Start-Process -FilePath (Join-Path $InstallRoot 'ai_runtime\YamatanaAIIME.exe') -ArgumentList '--check' -Wait -PassThru
 if ($check.ExitCode -ne 0) {
