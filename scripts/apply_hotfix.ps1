@@ -53,6 +53,15 @@ function Copy-HotfixFile {
         [Parameter(Mandatory = $true)][string]$Destination
     )
 
+    if (Test-Path -LiteralPath $Destination) {
+        $sourceHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Source).Hash
+        $destinationHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Destination).Hash
+        if ($sourceHash -eq $destinationHash) {
+            Write-Host "Already current: $Destination"
+            return
+        }
+    }
+
     $attempts = 40
     for ($attempt = 1; $attempt -le $attempts; $attempt++) {
         try {
@@ -77,8 +86,6 @@ function Copy-HotfixFile {
     }
 }
 
-Stop-LockingProcesses
-Start-Sleep -Milliseconds 250
 Copy-HotfixFile -Source $RuntimeSource -Destination $RuntimeTarget
 Copy-HotfixFile -Source $ServerSource -Destination $ServerTarget
 
@@ -87,5 +94,7 @@ if ($check.ExitCode -ne 0) {
     throw "Installed runtime self-test failed with exit code $($check.ExitCode)"
 }
 
-Start-Process -FilePath (Join-Path $InstallRoot 'ai_runtime\YamatanaAIIME.exe')
+if (@(Get-Process -Name YamatanaAIIME -ErrorAction SilentlyContinue).Count -eq 0) {
+    Start-Process -FilePath (Join-Path $InstallRoot 'ai_runtime\YamatanaAIIME.exe')
+}
 Write-Host 'Yamatana AI IME hotfix applied successfully.' -ForegroundColor Green
