@@ -43,7 +43,11 @@ $processNames = @(
 
 function Stop-LockingProcesses {
     foreach ($name in $processNames) {
-        & "$env:SystemRoot\System32\taskkill.exe" /F /T /IM "$name.exe" 2>$null | Out-Null
+        # Start-Process keeps taskkill's "process not found" stderr out of
+        # PowerShell's native-command error pipeline. Exit code 128 is normal.
+        Start-Process -FilePath "$env:SystemRoot\System32\taskkill.exe" `
+            -ArgumentList @('/F', '/T', '/IM', "$name.exe") `
+            -WindowStyle Hidden -Wait -PassThru | Out-Null
     }
 }
 
