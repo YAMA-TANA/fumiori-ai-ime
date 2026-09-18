@@ -86,6 +86,8 @@ function Copy-HotfixFile {
     }
 }
 
+Stop-LockingProcesses
+Start-Sleep -Milliseconds 250
 Copy-HotfixFile -Source $RuntimeSource -Destination $RuntimeTarget
 Copy-HotfixFile -Source $ServerSource -Destination $ServerTarget
 
