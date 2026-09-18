@@ -398,9 +398,9 @@ std::vector<ai_ranker::BatchSegmentInput> BuildPrefetchBatch(
   for (size_t index = 0; index < segments.conversion_segments_size(); ++index) {
     ai_ranker::BatchSegmentInput input = BuildBatchSegmentInput(
         segments, index, document_prefix, document_suffix);
-    // The prefetch wire format reuses the batch schema, but the server ignores
-    // candidate text and computes only context vectors for this trigger.
-    input.candidates = {{"c0", std::string(), 1}};
+    // The prefetch wire format reuses the batch schema.  The server computes
+    // the context vector and warms candidate embeddings, but does not rank or
+    // reorder anything; Space can then perform dot products only.
     batch.push_back(std::move(input));
   }
   return batch;

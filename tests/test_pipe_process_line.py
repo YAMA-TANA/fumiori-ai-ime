@@ -31,7 +31,7 @@ def test_process_line_prefetch_does_not_call_candidate_ranker():
 
         def prefetch_batch(self, request):
             self.calls += 1
-            assert request['segments'][0]['candidates'][0]['text'] == ''
+            assert request['segments'][0]['candidates'][0]['text'] == '測る'
             return {
                 'request_id': request['request_id'],
                 'segments': [{
@@ -50,7 +50,7 @@ def test_process_line_prefetch_does_not_call_candidate_ranker():
             'preceding_text': '月と地球の距離を',
             'following_text': '',
             'read': 'はかる',
-            'candidates': [{'id': 'c0', 'text': '', 'rank': 1}],
+            'candidates': [{'id': 'c0', 'text': '測る', 'rank': 1}],
         }],
     }
     response = process_line(

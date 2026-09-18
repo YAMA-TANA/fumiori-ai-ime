@@ -497,7 +497,13 @@ class OnnxDualEncoderIMEReranker:
         }
 
     def prefetch_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Encode only predictor contexts; candidate vectors are not touched."""
+        """Warm predictor contexts and candidate vectors without ranking.
+
+        The Mozc realtime path sends this request without waiting for a
+        response.  Preparing both sides here keeps the later Space request to
+        cache lookup plus dot products; no candidate ordering is performed
+        during prefetch.
+        """
         request_id = request.get("request_id", "prefetch")
         segments = request.get("segments", [])
         if not segments:
@@ -512,6 +518,13 @@ class OnnxDualEncoderIMEReranker:
                 safe_prefix if content_signal_length(safe_prefix) >= 2 else "文脈"
             )
         self._get_context_vectors(context_queries)
+        candidate_words = [
+            str(candidate.get("text", candidate.get("word", "")))
+            for seg in segments
+            for candidate in seg.get("candidates", [])
+            if str(candidate.get("text", candidate.get("word", "")))
+        ]
+        self.preload_candidates(candidate_words)
         return {
             "request_id": request_id,
             "segments": [
