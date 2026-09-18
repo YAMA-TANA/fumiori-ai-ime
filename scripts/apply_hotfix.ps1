@@ -6,8 +6,17 @@ $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $InstallRoot = 'C:\Program Files (x86)\Yamatana AI IME'
 $RuntimeTarget = Join-Path $InstallRoot 'ai_runtime\YamatanaAIIME.exe'
 $ServerTarget = Join-Path $InstallRoot 'mozc_server.exe'
-$RuntimeSource = Join-Path $PSScriptRoot '..\hotfix\YamatanaAIIME.exe'
-$ServerSource = Join-Path $PSScriptRoot '..\hotfix\mozc_server.exe'
+$RuntimeSource = Join-Path $Root 'hotfix\YamatanaAIIME.exe'
+$ServerSource = Join-Path $Root 'hotfix\mozc_server.exe'
+if (-not (Test-Path -LiteralPath $RuntimeSource)) {
+    $RuntimeSource = Join-Path $Root 'dist\YamatanaAIIME\YamatanaAIIME.exe'
+}
+if (-not (Test-Path -LiteralPath $ServerSource)) {
+    $ServerSource = Get-ChildItem (Join-Path $Root 'build\mozc-src\src\bazel-out') -Recurse -Filter 'mozc_server.exe.exe' -File |
+        Where-Object { $_.FullName -match 'x64_windows-opt-.*\\bin\\server\\mozc_server\.exe\.exe$' } |
+        Sort-Object LastWriteTime -Descending |
+        Select-Object -First 1 -ExpandProperty FullName
+}
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]$identity
