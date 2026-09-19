@@ -34,6 +34,13 @@ Mozcが作った候補をAIが読み直すため、AIが勝手に文章を生成
 - [Qiita：AIに変換候補を選ばせるIMEを作ってみた](https://qiita.com/yamatana364/items/c9b640e64070a798c4ff)
 - [Zenn：AIに変換候補を選ばせるIMEを作ってみた](https://zenn.dev/yamatana/articles/92cd6e19eb8d45)
 
+### GMO DESIGN AWARD 2026 提出資料
+
+本プロダクトはGMO DESIGN AWARD 2026のプロダクト部門向けに、応募フォーム下書きとプレゼンテーションシートを公開しています。
+
+- [応募フォーム下書き](docs/awards/GMO_DESIGN_AWARD_2026_ENTRY_DRAFT_JA.md)
+- [プレゼンテーションシート](docs/awards/GMO_DESIGN_AWARD_2026_PRESENTATION_SHEET_JA.md)
+
 ### 変換候補が変わる様子
 
 冒頭の「明日の天気予報は雨だ」の変換から、後半の「御土産」の候補選びまでを収録しています。Mozcの候補をAIが文脈に合わせて選び、確定候補を入れ替える流れです。
