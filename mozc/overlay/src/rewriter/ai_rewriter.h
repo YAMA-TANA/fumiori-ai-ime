@@ -26,6 +26,12 @@ class AiRewriter final : public RewriterInterface {
   std::optional<ResizeSegmentsRequest> CheckResizeSegmentsRequest(
       const ConversionRequest& request,
       const Segments& segments) const override;
+  // Starts the context prefetch for the next conversion after Mozc has
+  // finished committing the current conversion.  This is intentionally
+  // separate from Rewrite(): Rewrite() is called while the composition is
+  // still changing and may only warm candidate vectors there.
+  void Finish(const ConversionRequest& request,
+              const Segments& segments) const;
   bool Rewrite(const ConversionRequest& request,
                Segments* segments) const override;
 

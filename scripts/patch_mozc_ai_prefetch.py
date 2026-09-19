@@ -46,7 +46,8 @@ def patch_checkout(checkout: Path) -> None:
         "  results->emplace_back(std::move(result));\n",
         "  if (!append_result) {\n"
         "    // The converter was run only to let the AI rewriter prefetch its\n"
-        "    // context and candidate vectors.  The immutable-converter results\n"
+        "    // candidate vectors.  Context vectors are prefetched after the\n"
+        "    // previous conversion is committed.  The immutable-converter results\n"
         "    // below remain the visible prediction list.\n"
         "    return true;\n"
         "  }\n"

@@ -406,16 +406,47 @@ std::vector<ai_ranker::BatchSegmentInput> BuildPrefetchBatch(
   return batch;
 }
 
-std::string MakeContextPrefetchKey(const Segments& segments,
-                                   absl::string_view document_prefix,
-                                   absl::string_view document_suffix) {
+std::string CommittedConversionValue(const Segments& segments) {
+  std::string value;
+  for (const converter::Segment& segment : segments.conversion_segments()) {
+    if (segment.candidates_size() == 0) continue;
+    value.append(segment.candidate(0).value);
+  }
+  return value;
+}
+
+std::vector<ai_ranker::BatchSegmentInput> BuildNextContextPrefetchBatch(
+    const ConversionRequest& request, const Segments& segments) {
+  const std::string committed_value = CommittedConversionValue(segments);
+  if (committed_value.empty()) return {};
+
+  std::string preceding(request.context().preceding_text());
+  preceding.append(committed_value);
+  std::string following(request.context().following_text());
+
+  // The context-prefetch wire format intentionally reuses the batch schema.
+  // Candidate vectors are not touched by the context-prefetch handler; this
+  // single inert candidate only satisfies the shared transport schema.
+  std::vector<ai_ranker::CandidateInput> marker_candidates = {
+      {"c0", "文脈", 1}};
+  return {{"post-commit-context", std::move(preceding),
+           std::move(following), "", std::move(marker_candidates)}};
+}
+
+std::string MakeNextContextPrefetchKey(const ConversionRequest& request,
+                                       const Segments& segments) {
+  const std::string committed_value = CommittedConversionValue(segments);
   std::string key;
-  key.reserve(document_prefix.size() + document_suffix.size() + 32);
-  key.append(document_prefix.data(), document_prefix.size());
+  key.reserve(request.context().preceding_text().size() +
+              request.context().following_text().size() +
+              committed_value.size() + 3);
+  key.append(request.context().preceding_text().data(),
+             request.context().preceding_text().size());
   key.push_back('\0');
-  key.append(document_suffix.data(), document_suffix.size());
+  key.append(committed_value);
   key.push_back('\0');
-  key.append(std::to_string(segments.conversion_segments_size()));
+  key.append(request.context().following_text().data(),
+             request.context().following_text().size());
   return key;
 }
 
@@ -611,33 +642,21 @@ bool AiRewriter::Rewrite(const ConversionRequest& request,
 
   if (request.options().used_in_predictor_realtime_conversion &&
       request.options().skip_slow_rewriters) {
-    std::string preceding_text(request.context().preceding_text());
-    if (preceding_text.empty()) {
-      preceding_text = segments->history_value();
-    }
-    const std::string trailing_text(request.context().following_text());
+    // The composition is still changing here.  Only candidate vectors are
+    // valid to prefetch on this path.  Context vectors are started from
+    // Finish(), after the current conversion has actually been committed.
     const std::vector<ai_ranker::BatchSegmentInput> prefetch =
-        BuildPrefetchBatch(*segments, preceding_text, trailing_text);
+        BuildPrefetchBatch(*segments, request.context().preceding_text(),
+                           request.context().following_text());
     if (!prefetch.empty()) {
       ai_ranker::Client client(pipe_name_);
-      // The context side is keyed only by surrounding document context, so a
-      // growing composition does not restart the same context encoder pass.
-      // Candidate-side work is keyed by the actual conversion range and is
-      // refreshed whenever that range/candidate set changes.
-      const std::string context_key = MakeContextPrefetchKey(
-          *segments, preceding_text, trailing_text);
       const std::string candidate_key = MakeCandidatePrefetchKey(
-          *segments, preceding_text, trailing_text);
-      bool send_context = false;
+          *segments, request.context().preceding_text(),
+          request.context().following_text());
       bool send_candidates = false;
       {
         std::lock_guard<std::mutex> lock(prefetch_mutex_);
-        send_context = context_key != last_context_prefetch_key_;
         send_candidates = candidate_key != last_candidate_prefetch_key_;
-      }
-      if (send_context && client.PrefetchContextBatch(prefetch, 25)) {
-        std::lock_guard<std::mutex> lock(prefetch_mutex_);
-        last_context_prefetch_key_ = context_key;
       }
       if (send_candidates && client.PrefetchCandidateBatch(prefetch, 25)) {
         std::lock_guard<std::mutex> lock(prefetch_mutex_);
@@ -760,6 +779,25 @@ bool AiRewriter::Rewrite(const ConversionRequest& request,
   }
 
   return any_reordered;
+}
+
+void AiRewriter::Finish(const ConversionRequest& request,
+                        const Segments& segments) const {
+  const std::vector<ai_ranker::BatchSegmentInput> prefetch =
+      BuildNextContextPrefetchBatch(request, segments);
+  if (prefetch.empty()) return;
+
+  const std::string context_key =
+      MakeNextContextPrefetchKey(request, segments);
+  {
+    std::lock_guard<std::mutex> lock(prefetch_mutex_);
+    if (context_key == last_context_prefetch_key_) return;
+  }
+
+  ai_ranker::Client client(pipe_name_);
+  if (!client.PrefetchContextBatch(prefetch, 25)) return;
+  std::lock_guard<std::mutex> lock(prefetch_mutex_);
+  last_context_prefetch_key_ = context_key;
 }
 
 }  // namespace mozc

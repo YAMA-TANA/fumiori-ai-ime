@@ -179,6 +179,11 @@ class FinalAiRewriter final : public RewriterInterface {
     return delegate_.Rewrite(request, segments);
   }
 
+  void Finish(const ConversionRequest& request,
+              const Segments& segments) override {
+    delegate_.Finish(request, segments);
+  }
+
  private:
   AiRewriter delegate_;
 };

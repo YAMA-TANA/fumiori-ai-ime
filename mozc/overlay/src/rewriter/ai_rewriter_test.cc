@@ -303,7 +303,7 @@ TEST(AiRewriterTest, RealtimeConversionSkipsAiRanker) {
   EXPECT_EQ(segments.segment(0).candidate(1).value, "鼻");
 }
 
-TEST(AiRewriterTest, PredictorRealtimeMarkerSplitsContextAndCandidatesPrefetch) {
+TEST(AiRewriterTest, PredictorRealtimeMarkerPrefetchesCandidatesOnly) {
   ConversionRequest::Options options;
   options.request_type = ConversionRequest::CONVERSION;
   options.skip_slow_rewriters = true;
@@ -314,7 +314,7 @@ TEST(AiRewriterTest, PredictorRealtimeMarkerSplitsContextAndCandidatesPrefetch) 
   const std::wstring pipe_name =
       L"\\\\.\\pipe\\yamatana_ai_rewriter_prefetch_test";
   FakeRankerServer server(
-      pipe_name, "c0", "\"inference_trigger\":\"context_prefetch\"", 2);
+      pipe_name, "c0", "\"inference_trigger\":\"candidate_prefetch\"", 1);
   ASSERT_TRUE(server.valid());
   AiRewriter rewriter(pipe_name);
   EXPECT_EQ(rewriter.capability(request),
@@ -326,6 +326,28 @@ TEST(AiRewriterTest, PredictorRealtimeMarkerSplitsContextAndCandidatesPrefetch) 
   segment->add_candidate()->value = "花";
   segment->add_candidate()->value = "鼻";
   EXPECT_FALSE(rewriter.Rewrite(request, &segments));
+}
+
+TEST(AiRewriterTest, FinishPrefetchesTheCommittedContextForTheNextConversion) {
+  const std::wstring pipe_name =
+      L"\\\\.\\pipe\\yamatana_ai_rewriter_post_commit_prefetch_test";
+  FakeRankerServer server(
+      pipe_name, "c0", "\"inference_trigger\":\"context_prefetch\"", 1);
+  ASSERT_TRUE(server.valid());
+
+  commands::Context context;
+  context.set_preceding_text("庭の大きな");
+  const ConversionRequest request =
+      ConversionRequestBuilder().SetContext(context).Build();
+
+  Segments segments;
+  Segment* segment = segments.add_segment();
+  segment->set_key("はな");
+  segment->add_candidate()->value = "花";
+  segment->add_candidate()->value = "鼻";
+
+  AiRewriter rewriter(pipe_name);
+  rewriter.Finish(request, segments);
 }
 
 TEST(AiRewriterTest, PredictorMarkerOnFinalConversionRunsAiRanker) {
