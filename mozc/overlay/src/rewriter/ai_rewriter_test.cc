@@ -274,10 +274,11 @@ class FakeRankerServer {
 
 }  // namespace
 
-TEST(AiRewriterTest, CapabilityIsConversionOnly) {
+TEST(AiRewriterTest, CapabilitySupportsConversionAndPrediction) {
   AiRewriter rewriter(L"missing-ai-ime-pipe");
   const ConversionRequest request;
-  EXPECT_EQ(rewriter.capability(request), RewriterInterface::CONVERSION);
+  EXPECT_EQ(rewriter.capability(request),
+            RewriterInterface::CONVERSION | RewriterInterface::PREDICTION);
 }
 
 TEST(AiRewriterTest, RealtimeConversionSkipsAiRanker) {

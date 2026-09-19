@@ -562,7 +562,11 @@ int AiRewriter::capability(const ConversionRequest& request) const {
   if (request.options().skip_slow_rewriters) {
     return RewriterInterface::NOT_AVAILABLE;
   }
-  return RewriterInterface::CONVERSION;
+  // Mozc's realtime conversion path can deliver the final candidate list as
+  // PREDICTION even when the user commits it with Space/Enter. The marker
+  // path above handles background prefetch; ordinary prediction requests
+  // must also reach the final cached dot-product ranking pass.
+  return RewriterInterface::CONVERSION | RewriterInterface::PREDICTION;
 }
 
 std::optional<RewriterInterface::ResizeSegmentsRequest>
