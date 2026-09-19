@@ -38,6 +38,9 @@ Get-ChildItem -LiteralPath $Overlay -File -Recurse | ForEach-Object {
 python (Join-Path $RepoRoot 'scripts\patch_mozc_surrounding_context.py') --checkout $Checkout
 if ($LASTEXITCODE -ne 0) { throw 'Mozc surrounding context patch failed' }
 
+python (Join-Path $RepoRoot 'scripts\patch_mozc_ai_prefetch.py') --checkout $Checkout
+if ($LASTEXITCODE -ne 0) { throw 'Mozc AI prefetch patch failed' }
+
 python (Join-Path $RepoRoot 'scripts\modernize_mozc_ui.py') --checkout $Checkout
 if ($LASTEXITCODE -ne 0) { throw 'Mozc modern UI patch failed' }
 
