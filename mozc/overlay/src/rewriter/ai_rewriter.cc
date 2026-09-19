@@ -28,8 +28,8 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
-constexpr size_t kMaxAiCandidateSurfaceLimit = 5;
-constexpr size_t kNormalCandidateSurfaceLimit = 4;
+constexpr size_t kMaxAiCandidateSurfaceLimit = 15;
+constexpr size_t kNormalCandidateSurfaceLimit = 14;
 constexpr size_t kSupplementalCandidateSurfaceLimit = 1;
 constexpr size_t kMinInternalPhraseContextChars = 4;
 constexpr double kBatchHighConfidence = 0.65;
@@ -208,7 +208,7 @@ std::vector<size_t> SelectDistinctCandidateSurfaces(
   }
 
   // Reserve one slot for a high-value numeric/abbreviation supplement when
-  // one exists, but fill all five slots with ordinary candidates otherwise.
+  // one exists, but fill all fifteen slots with ordinary candidates otherwise.
   if (!supplemental.empty() && selected.size() >= kMaxAiCandidateSurfaceLimit) {
     selected.pop_back();
     surfaces.pop_back();

@@ -611,7 +611,7 @@ TEST(AiRewriterTest, RankerWinnerMovesToCandidateZero) {
             0);
 }
 
-TEST(AiRewriterTest, SendsAtMostFiveDistinctSurfacesToRanker) {
+TEST(AiRewriterTest, SendsAtMostFifteenDistinctSurfacesToRanker) {
   const std::wstring pipe_name =
       L"\\\\.\\pipe\\yamatana_ai_rewriter_candidate_limit_test";
   FakeRankerServer server(pipe_name, "c8");
@@ -620,7 +620,7 @@ TEST(AiRewriterTest, SendsAtMostFiveDistinctSurfacesToRanker) {
   Segments segments;
   Segment* segment = segments.add_segment();
   segment->set_key("こうほ");
-  for (size_t i = 0; i < 10; ++i) {
+  for (size_t i = 0; i < 20; ++i) {
     segment->add_candidate()->value = "候補" + std::to_string(i);
   }
 
@@ -630,11 +630,11 @@ TEST(AiRewriterTest, SendsAtMostFiveDistinctSurfacesToRanker) {
       ConversionRequestBuilder().SetContext(context).Build();
   AiRewriter rewriter(pipe_name);
 
-  EXPECT_FALSE(rewriter.Rewrite(request, &segments));
-  EXPECT_EQ(segments.segment(0).candidate(0).value, "候補0");
+  EXPECT_TRUE(rewriter.Rewrite(request, &segments));
+  EXPECT_EQ(segments.segment(0).candidate(0).value, "候補8");
   const std::vector<size_t> counts = server.candidate_counts();
   ASSERT_EQ(counts.size(), 1);
-  EXPECT_EQ(counts[0], 5);
+  EXPECT_EQ(counts[0], 15);
 }
 
 TEST(AiRewriterTest, DuplicateSurfacesAreNotSentAsSeparateChoices) {
