@@ -8,6 +8,7 @@ and resident in-memory candidate vector cache.
 from __future__ import annotations
 
 import logging
+import json
 import math
 import os
 from pathlib import Path
@@ -25,8 +26,9 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from product_settings import load_settings, normalize_settings
+from product_settings import load_settings, normalize_settings, product_data_dir
 from ranker.scoring import contextual_candidate_bonus, reading_identity_penalty
+from ranker.persistent_embedding_store import PersistentEmbeddingStore
 
 LOG = logging.getLogger("yamatana_ai_ime.onnx_dual_encoder")
 
@@ -105,6 +107,8 @@ class OnnxDualEncoderIMEReranker:
         model_path: Optional[str | Path] = None,
         context_chars: int = 36,
         execution_providers: Optional[Sequence[str]] = None,
+        candidate_store_path: Optional[str | Path] = None,
+        candidate_warmup_limit: Optional[int] = None,
     ) -> None:
         self.settings = normalize_settings(settings) if settings is not None else load_settings(settings_path)
         self.context_enabled = bool(self.settings.get("context_enabled", True))
@@ -182,7 +186,9 @@ class OnnxDualEncoderIMEReranker:
         self.session = ort.InferenceSession(self.model_path, options, providers=providers)
         self.device = "gpu" if use_gpu else "cpu"
 
-        # In-memory candidate embedding cache (word -> 384-dim numpy array)
+        # In-memory candidate embedding cache (word -> 384-dim numpy array).
+        # The persistent store below is float16 on disk; scoring remains
+        # float32 so the dot-product path does not lose precision.
         self.candidate_cache: dict[str, np.ndarray] = {}
         # Context vectors are keyed by their exact safe context string.  A
         # changed context therefore cannot reuse a stale vector, while a
@@ -191,10 +197,50 @@ class OnnxDualEncoderIMEReranker:
         self.context_cache_signature: tuple[str, ...] = ()
         self._cache_lock = threading.RLock()
         self._model_lock = threading.Lock()
+        model_stat = Path(self.model_path).stat()
+        model_key = (
+            f"{self.model_path}|{model_stat.st_size}|{model_stat.st_mtime_ns}"
+        )
+        store_override = os.environ.get("YAMATANA_CANDIDATE_STORE")
+        store_path = Path(
+            candidate_store_path
+            or store_override
+            or (product_data_dir() / "candidate_embeddings.sqlite3")
+        )
+        self.candidate_store = PersistentEmbeddingStore(store_path, model_key)
+        configured_warmup = os.environ.get("YAMATANA_CANDIDATE_WARMUP_LIMIT")
+        if candidate_warmup_limit is not None:
+            self.candidate_warmup_limit = max(0, int(candidate_warmup_limit))
+        elif configured_warmup is not None:
+            try:
+                self.candidate_warmup_limit = max(0, int(configured_warmup))
+            except ValueError:
+                self.candidate_warmup_limit = 100_000
+        else:
+            # Standalone/unit-test construction stays lazy.  The resident
+            # named-pipe process opts into the 100k startup warmup explicitly
+            # below, so one-shot callers never launch a bulk ONNX worker.
+            self.candidate_warmup_limit = 0
+
         self._prefetch_state_lock = threading.Lock()
         self._prefetch_condition = threading.Condition(self._prefetch_state_lock)
-        self._pending_prefetch: Optional[Dict[str, Any]] = None
-        self._prefetch_worker: Optional[threading.Thread] = None
+        self._pending_context_prefetch: Optional[Dict[str, Any]] = None
+        self._context_prefetch_worker: Optional[threading.Thread] = None
+        self._pending_candidate_prefetch: Optional[Dict[str, Any]] = None
+        self._candidate_prefetch_worker: Optional[threading.Thread] = None
+        self._context_prefetch_signature: tuple[str, ...] = ()
+
+        # This is deliberately best-effort and daemonized.  It fills the
+        # persistent dictionary from the packaged homophone vocabulary while
+        # the tray is idle; live candidate/context prefetch takes priority.
+        self._candidate_warmup_worker: Optional[threading.Thread] = None
+        if self.candidate_warmup_limit > 0:
+            self._candidate_warmup_worker = threading.Thread(
+                target=self._warm_candidate_dictionary,
+                name="yamatana-candidate-warmup",
+                daemon=True,
+            )
+            self._candidate_warmup_worker.start()
 
     def encode_texts(self, texts: list[str], max_length: int = 48) -> np.ndarray:
         """Encode a batch of texts into normalized embedding vectors (N x 384)."""
@@ -217,15 +263,23 @@ class OnnxDualEncoderIMEReranker:
         return outputs.astype(np.float32)
 
     def preload_candidates(self, words: Sequence[str]) -> None:
-        """Pre-compute and cache candidate embeddings in resident memory."""
+        """Pre-compute and cache candidate embeddings in memory and on disk."""
         with self._cache_lock:
             missing = [w for w in set(words) if w and w not in self.candidate_cache]
+        if not missing:
+            return
+        persisted = self.candidate_store.get_many(missing)
+        if persisted:
+            with self._cache_lock:
+                self.candidate_cache.update(persisted)
+            missing = [word for word in missing if word not in persisted]
         if not missing:
             return
         embeddings = self.encode_texts(missing, max_length=16)
         with self._cache_lock:
             for w, emb in zip(missing, embeddings):
                 self.candidate_cache[w] = emb
+        self.candidate_store.put_many(missing, embeddings)
 
     def get_candidate_embedding(self, word: str) -> np.ndarray:
         """Get candidate embedding with transparent in-memory caching."""
@@ -233,9 +287,15 @@ class OnnxDualEncoderIMEReranker:
             cached = self.candidate_cache.get(word)
         if cached is not None:
             return cached
+        persisted = self.candidate_store.get_many([word]).get(word)
+        if persisted is not None:
+            with self._cache_lock:
+                self.candidate_cache[word] = persisted
+            return persisted
         emb = self.encode_texts([word], max_length=16)[0]
         with self._cache_lock:
             self.candidate_cache[word] = emb
+        self.candidate_store.put_many([word], emb.reshape(1, -1))
         return emb
 
     def _get_context_vectors(self, context_queries: Sequence[str]) -> np.ndarray:
@@ -302,11 +362,22 @@ class OnnxDualEncoderIMEReranker:
             if remaining <= 0:
                 return False
             with self._prefetch_condition:
-                worker_active = (
-                    self._prefetch_worker is not None
-                    and self._prefetch_worker.is_alive()
+                context_needed = any(
+                    query not in self.context_cache for query in contexts
                 )
-                if not worker_active and self._pending_prefetch is None:
+                candidate_needed = any(
+                    word not in self.candidate_cache for word in words
+                )
+                context_active = (
+                    self._context_prefetch_worker is not None
+                    and self._context_prefetch_worker.is_alive()
+                ) or self._pending_context_prefetch is not None
+                candidate_active = (
+                    self._candidate_prefetch_worker is not None
+                    and self._candidate_prefetch_worker.is_alive()
+                ) or self._pending_candidate_prefetch is not None
+                if ((not context_needed or not context_active) and
+                        (not candidate_needed or not candidate_active)):
                     return False
                 self._prefetch_condition.wait(timeout=remaining)
 
@@ -314,10 +385,94 @@ class OnnxDualEncoderIMEReranker:
         """Return whether a background prefetch is queued or running."""
         with self._prefetch_condition:
             return (
-                self._pending_prefetch is not None
-                or (self._prefetch_worker is not None
-                    and self._prefetch_worker.is_alive())
+                self._pending_context_prefetch is not None
+                or self._pending_candidate_prefetch is not None
+                or (self._context_prefetch_worker is not None
+                    and self._context_prefetch_worker.is_alive())
+                or (self._candidate_prefetch_worker is not None
+                    and self._candidate_prefetch_worker.is_alive())
             )
+
+    def _candidate_vocabulary_path(self) -> Optional[Path]:
+        override = os.environ.get("YAMATANA_CANDIDATE_VOCABULARY")
+        if override:
+            path = Path(override)
+            if path.exists():
+                return path
+        return _resolve_first((
+            "data/candidate_vocabulary.txt",
+            "data/massive_homophone_database.json",
+        ))
+
+    def _iter_candidate_vocabulary(self):
+        """Yield unique surfaces from the packaged candidate vocabulary."""
+        path = self._candidate_vocabulary_path()
+        if path is None:
+            return
+        seen: set[str] = set()
+        try:
+            if path.suffix.lower() == ".json":
+                with path.open("r", encoding="utf-8") as handle:
+                    database = json.load(handle)
+                for entry in database.values():
+                    for candidate in entry.get("candidates", []):
+                        word = str(candidate).strip()
+                        if word and word not in seen:
+                            seen.add(word)
+                            yield word
+                return
+            with path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    word = line.strip()
+                    if word and not word.startswith("#") and word not in seen:
+                        seen.add(word)
+                        yield word
+        except (OSError, UnicodeError, json.JSONDecodeError, AttributeError) as exc:
+            LOG.warning("could not read candidate vocabulary %s: %s", path, exc)
+
+    def _warm_candidate_dictionary(self) -> None:
+        """Fill the resident/persistent candidate dictionary opportunistically."""
+        # Let the pipe become ready before doing any bulk work.
+        time.sleep(0.2)
+        batch: list[str] = []
+        seen_count = 0
+        batch_size = 256
+        try:
+            for word in self._iter_candidate_vocabulary():
+                if seen_count >= self.candidate_warmup_limit:
+                    break
+                batch.append(word)
+                seen_count += 1
+                if len(batch) < batch_size:
+                    continue
+                self._wait_for_live_prefetch()
+                self.preload_candidates(batch)
+                batch.clear()
+            if batch:
+                self._wait_for_live_prefetch()
+                self.preload_candidates(batch)
+            LOG.info(
+                "candidate dictionary warmup complete: %s words, persistent=%s, stored=%s",
+                seen_count, self.candidate_store.enabled, self.candidate_store.count(),
+            )
+        except Exception:
+            LOG.exception("candidate dictionary warmup failed")
+
+    def _wait_for_live_prefetch(self) -> None:
+        """Yield bulk work while live context/candidate prefetch is active."""
+        while True:
+            with self._prefetch_condition:
+                active = (
+                    self._pending_context_prefetch is not None
+                    or self._pending_candidate_prefetch is not None
+                    or (self._context_prefetch_worker is not None
+                        and self._context_prefetch_worker.is_alive())
+                    or (self._candidate_prefetch_worker is not None
+                        and self._candidate_prefetch_worker.is_alive())
+                )
+            if not active:
+                return
+            time.sleep(0.02)
 
     def compute_length_and_mora_penalty(self, word: str, reading: str) -> float:
         """Penalize candidate words whose character length departs from expected reading."""
@@ -582,14 +737,22 @@ class OnnxDualEncoderIMEReranker:
             "segments": output_segments,
         }
 
-    def prefetch_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Warm predictor contexts and candidate vectors without ranking.
+    @staticmethod
+    def _prefetch_response(request: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "request_id": request.get("request_id", "prefetch"),
+            "segments": [
+                {
+                    "id": str(seg["id"]),
+                    "winner_id": str(seg["candidates"][0]["id"]),
+                    "confidence": 0.0,
+                }
+                for seg in request.get("segments", [])
+            ],
+        }
 
-        The Mozc realtime path sends this request without waiting for a
-        response.  Preparing both sides here keeps the later Space request to
-        cache lookup plus dot products; no candidate ordering is performed
-        during prefetch.
-        """
+    def prefetch_context_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Warm only context vectors for the current conversion snapshot."""
         request_id = request.get("request_id", "prefetch")
         segments = request.get("segments", [])
         if not segments:
@@ -603,7 +766,23 @@ class OnnxDualEncoderIMEReranker:
             context_queries.append(
                 safe_prefix if content_signal_length(safe_prefix) >= 2 else "文脈"
             )
+        signature = tuple(context_queries)
+        with self._cache_lock:
+            if signature != self._context_prefetch_signature:
+                # Context vectors are tied to the current document context.
+                # Never retain an older context generation after it changes.
+                self.context_cache.clear()
+                self.context_cache_signature = ()
+                self._context_prefetch_signature = signature
         self._get_context_vectors(context_queries)
+        return self._prefetch_response(request)
+
+    def prefetch_candidate_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Warm only candidate vectors; context encoding is never triggered."""
+        segments = request.get("segments", [])
+        if not segments:
+            return {"request_id": request.get("request_id", "prefetch"),
+                    "segments": []}
         candidate_words = [
             str(candidate.get("text", candidate.get("word", "")))
             for seg in segments
@@ -611,45 +790,76 @@ class OnnxDualEncoderIMEReranker:
             if str(candidate.get("text", candidate.get("word", "")))
         ]
         self.preload_candidates(candidate_words)
-        return {
-            "request_id": request_id,
-            "segments": [
-                {
-                    "id": str(seg["id"]),
-                    "winner_id": str(seg["candidates"][0]["id"]),
-                    "confidence": 0.0,
-                }
-                for seg in segments
-            ],
-        }
+        return self._prefetch_response(request)
+
+    def prefetch_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Backward-compatible combined prefetch for older Mozc binaries."""
+        self.prefetch_context_batch(request)
+        return self.prefetch_candidate_batch(request)
 
     def prefetch_batch_async(self, request: Dict[str, Any]) -> None:
-        """Queue only the newest predictor prefetch without blocking the pipe."""
+        """Queue both sides for compatibility with older clients."""
+        self.prefetch_context_batch_async(request)
+        self.prefetch_candidate_batch_async(request)
+
+    def prefetch_context_batch_async(self, request: Dict[str, Any]) -> None:
+        """Queue the newest context snapshot without blocking the pipe."""
+        self._queue_prefetch(request, context=True)
+
+    def prefetch_candidate_batch_async(self, request: Dict[str, Any]) -> None:
+        """Queue the newest candidate range without blocking the pipe."""
+        self._queue_prefetch(request, context=False)
+
+    def _queue_prefetch(self, request: Dict[str, Any], *, context: bool) -> None:
         with self._prefetch_condition:
-            self._pending_prefetch = request
-            if self._prefetch_worker is not None and self._prefetch_worker.is_alive():
+            if context:
+                self._pending_context_prefetch = request
+                worker = self._context_prefetch_worker
+            else:
+                self._pending_candidate_prefetch = request
+                worker = self._candidate_prefetch_worker
+            if worker is not None and worker.is_alive():
                 return
-            self._prefetch_worker = threading.Thread(
+            worker = threading.Thread(
                 target=self._run_pending_prefetch,
-                name="yamatana-prefetch",
+                args=(context,),
+                name="yamatana-context-prefetch" if context
+                else "yamatana-candidate-prefetch",
                 daemon=True,
             )
-            self._prefetch_worker.start()
+            if context:
+                self._context_prefetch_worker = worker
+            else:
+                self._candidate_prefetch_worker = worker
+            worker.start()
 
-    def _run_pending_prefetch(self) -> None:
+    def _run_pending_prefetch(self, context: bool) -> None:
         while True:
             with self._prefetch_state_lock:
-                request = self._pending_prefetch
-                self._pending_prefetch = None
+                if context:
+                    request = self._pending_context_prefetch
+                    self._pending_context_prefetch = None
+                else:
+                    request = self._pending_candidate_prefetch
+                    self._pending_candidate_prefetch = None
             if request is None:
                 with self._prefetch_condition:
-                    self._prefetch_worker = None
+                    if context:
+                        self._context_prefetch_worker = None
+                    else:
+                        self._candidate_prefetch_worker = None
                     self._prefetch_condition.notify_all()
                 return
             try:
-                self.prefetch_batch(request)
+                if context:
+                    self.prefetch_context_batch(request)
+                else:
+                    self.prefetch_candidate_batch(request)
             except Exception:
-                LOG.exception("Dual-Encoder prefetch failed")
+                LOG.exception(
+                    "%s prefetch failed",
+                    "context" if context else "candidate",
+                )
             finally:
                 with self._prefetch_condition:
                     self._prefetch_condition.notify_all()

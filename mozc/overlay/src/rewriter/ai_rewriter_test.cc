@@ -302,7 +302,7 @@ TEST(AiRewriterTest, RealtimeConversionSkipsAiRanker) {
   EXPECT_EQ(segments.segment(0).candidate(1).value, "鼻");
 }
 
-TEST(AiRewriterTest, PredictorRealtimeMarkerPrefetchesContextOnly) {
+TEST(AiRewriterTest, PredictorRealtimeMarkerSplitsContextAndCandidatesPrefetch) {
   ConversionRequest::Options options;
   options.request_type = ConversionRequest::CONVERSION;
   options.skip_slow_rewriters = true;
@@ -312,7 +312,8 @@ TEST(AiRewriterTest, PredictorRealtimeMarkerPrefetchesContextOnly) {
 
   const std::wstring pipe_name =
       L"\\\\.\\pipe\\yamatana_ai_rewriter_prefetch_test";
-  FakeRankerServer server(pipe_name, "c0", "\"inference_trigger\":\"prefetch\"");
+  FakeRankerServer server(
+      pipe_name, "c0", "\"inference_trigger\":\"context_prefetch\"", 2);
   ASSERT_TRUE(server.valid());
   AiRewriter rewriter(pipe_name);
   EXPECT_EQ(rewriter.capability(request),

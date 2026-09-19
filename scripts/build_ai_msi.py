@@ -212,9 +212,19 @@ def build_msi() -> Path:
     installer_text = (MOZC / "win32" / "installer" / "installer_oss_64bit.wxs").read_text(
         encoding="utf-8"
     )
-    # Keep the post-install launch action.  The tray owns the AI ranker
-    # process, and the installer must hand off to a fresh instance instead of
-    # waiting for the next Windows logon to activate the Run entry.
+    # Do not launch the tray from the elevated MSI transaction.  The tray is
+    # started by the per-user Run entry at the next sign-in; launching it here
+    # can create a wrong-session process or duplicate tray icons.  Strip both
+    # the CustomAction declaration and its InstallExecuteSequence row from
+    # the upstream Mozc template.
+    installer_text = installer_text.replace(
+        '    <CustomAction Id="LaunchYamatanaTray" FileRef="YamatanaAIIME.exe" ExeCommand="--from-installer" Execute="immediate" Impersonate="yes" Return="asyncNoWait" />\n',
+        "",
+    )
+    installer_text = installer_text.replace(
+        '      <Custom Action="LaunchYamatanaTray" Before="InstallFinalize" Condition="(ACTION=&quot;INSTALL&quot;)" />\n',
+        "",
+    )
     installer_wxs.write_text(installer_text, encoding="utf-8")
 
     wix_command = shutil.which("wix") or shutil.which("wix.exe")

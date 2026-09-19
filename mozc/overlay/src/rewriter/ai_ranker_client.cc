@@ -392,12 +392,12 @@ bool SendBatchRequest(const std::wstring& pipe_name,
 
 bool SendPrefetchRequest(const std::wstring& pipe_name,
                          const std::vector<BatchSegmentInput>& segments,
-                         int timeout_ms) {
+                         const char* inference_trigger, int timeout_ms) {
   if (timeout_ms <= 0) return false;
   std::string request_id;
   std::string payload;
   std::map<std::string, std::set<std::string>> allowed;
-  if (!BuildBatchPayload(segments, "prefetch", &request_id, &payload,
+  if (!BuildBatchPayload(segments, inference_trigger, &request_id, &payload,
                          &allowed)) {
     return false;
   }
@@ -485,9 +485,22 @@ bool Client::RankBatch(const std::vector<BatchSegmentInput>& segments,
                           results);
 }
 
+bool Client::PrefetchContextBatch(
+    const std::vector<BatchSegmentInput>& segments, int timeout_ms) const {
+  return SendPrefetchRequest(pipe_name_, segments, "context_prefetch",
+                             timeout_ms);
+}
+
+bool Client::PrefetchCandidateBatch(
+    const std::vector<BatchSegmentInput>& segments, int timeout_ms) const {
+  return SendPrefetchRequest(pipe_name_, segments, "candidate_prefetch",
+                             timeout_ms);
+}
+
 bool Client::PrefetchBatch(const std::vector<BatchSegmentInput>& segments,
                            int timeout_ms) const {
-  return SendPrefetchRequest(pipe_name_, segments, timeout_ms);
+  return PrefetchContextBatch(segments, timeout_ms) &&
+         PrefetchCandidateBatch(segments, timeout_ms);
 }
 
 }  // namespace ai_ranker
@@ -511,6 +524,14 @@ bool Client::Rank(const std::string&, const std::string&,
 }
 bool Client::RankBatch(const std::vector<BatchSegmentInput>&, int,
                        std::vector<BatchSegmentResult>*) const {
+  return false;
+}
+bool Client::PrefetchContextBatch(const std::vector<BatchSegmentInput>&,
+                                  int) const {
+  return false;
+}
+bool Client::PrefetchCandidateBatch(const std::vector<BatchSegmentInput>&,
+                                    int) const {
   return false;
 }
 bool Client::PrefetchBatch(const std::vector<BatchSegmentInput>&, int) const {

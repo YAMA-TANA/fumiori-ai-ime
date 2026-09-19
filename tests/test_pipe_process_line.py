@@ -58,3 +58,37 @@ def test_process_line_prefetch_does_not_call_candidate_ranker():
     )
     assert ranker.calls == 1
     assert json.loads(response.decode('utf-8'))['segments'][0]['confidence'] == 0.0
+
+
+def test_process_line_routes_split_prefetch_to_separate_workers():
+    class SplitPrefetch:
+        def __init__(self):
+            self.context = 0
+            self.candidates = 0
+
+        def prefetch_context_batch_async(self, request):
+            self.context += 1
+
+        def prefetch_candidate_batch_async(self, request):
+            self.candidates += 1
+
+    ranker = SplitPrefetch()
+    base = {
+        'request_id': 'mozc-split-1',
+        'segments': [{
+            'id': 's0',
+            'preceding_text': '月と地球の距離を',
+            'following_text': '',
+            'read': 'はかる',
+            'candidates': [{'id': 'c0', 'text': '測る', 'rank': 1}],
+        }],
+    }
+    for trigger in ('context_prefetch', 'candidate_prefetch'):
+        request = dict(base, inference_trigger=trigger)
+        response = process_line(
+            (json.dumps(request, ensure_ascii=False) + '\n').encode('utf-8'),
+            ranker,
+        )
+        assert json.loads(response.decode('utf-8'))['segments'][0]['confidence'] == 0.0
+    assert ranker.context == 1
+    assert ranker.candidates == 1

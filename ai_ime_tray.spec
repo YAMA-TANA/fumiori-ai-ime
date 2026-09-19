@@ -86,6 +86,7 @@ all_hidden = [
     'ranker.ranker',
     'ranker.onnx_ranker',
     'ranker.onnx_dual_encoder_ranker',
+    'ranker.persistent_embedding_store',
     'ranker.lexicon',
     'ranker.scoring',
     'ranker.protocol',

@@ -67,13 +67,17 @@ def validate_request(message: Any) -> Dict[str, Any]:
     preceding = _string(message["preceding_text"], "preceding_text")
     following = _string(message["following_text"], "following_text") if "following_text" in message else ""
     inference_trigger = (
-        _string(message["inference_trigger"], "inference_trigger", max_bytes=16)
+        _string(message["inference_trigger"], "inference_trigger", max_bytes=32)
         if "inference_trigger" in message
         else "interactive"
     )
-    if inference_trigger not in {"explicit", "interactive", "prefetch"}:
+    if inference_trigger not in {
+        "explicit", "interactive", "prefetch",
+        "context_prefetch", "candidate_prefetch",
+    }:
         raise ProtocolError(
-            "inference_trigger must be explicit, interactive, or prefetch"
+            "inference_trigger must be explicit, interactive, prefetch, "
+            "context_prefetch, or candidate_prefetch"
         )
     reading = _string(message["read"], "read", max_bytes=512)
     candidates = message["candidates"]
@@ -136,11 +140,15 @@ def validate_batch_request(message: Any) -> Dict[str, Any]:
     if not request_id:
         raise ProtocolError("request_id must not be empty")
     inference_trigger = _string(
-        message["inference_trigger"], "inference_trigger", max_bytes=16
+        message["inference_trigger"], "inference_trigger", max_bytes=32
     )
-    if inference_trigger not in {"explicit", "interactive", "prefetch"}:
+    if inference_trigger not in {
+        "explicit", "interactive", "prefetch",
+        "context_prefetch", "candidate_prefetch",
+    }:
         raise ProtocolError(
-            "inference_trigger must be explicit, interactive, or prefetch"
+            "inference_trigger must be explicit, interactive, prefetch, "
+            "context_prefetch, or candidate_prefetch"
         )
 
     segments = message["segments"]

@@ -2,6 +2,7 @@
 #define MOZC_REWRITER_AI_REWRITER_H_
 
 #include <string>
+#include <mutex>
 
 #include "rewriter/rewriter_interface.h"
 
@@ -31,6 +32,12 @@ class AiRewriter final : public RewriterInterface {
  private:
   const dictionary::DictionaryInterface* dictionary_;
   std::wstring pipe_name_;
+  // RealtimeDecoder invokes Rewrite repeatedly while one composition grows.
+  // Context depends on the surrounding document, whereas candidates depend
+  // on the changing conversion range, so they need separate generations.
+  mutable std::mutex prefetch_mutex_;
+  mutable std::string last_context_prefetch_key_;
+  mutable std::string last_candidate_prefetch_key_;
 };
 
 }  // namespace mozc

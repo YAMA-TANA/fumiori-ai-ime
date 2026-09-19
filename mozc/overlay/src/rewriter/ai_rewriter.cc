@@ -406,6 +406,39 @@ std::vector<ai_ranker::BatchSegmentInput> BuildPrefetchBatch(
   return batch;
 }
 
+std::string MakeContextPrefetchKey(const Segments& segments,
+                                   absl::string_view document_prefix,
+                                   absl::string_view document_suffix) {
+  std::string key;
+  key.reserve(document_prefix.size() + document_suffix.size() + 32);
+  key.append(document_prefix.data(), document_prefix.size());
+  key.push_back('\0');
+  key.append(document_suffix.data(), document_suffix.size());
+  key.push_back('\0');
+  key.append(std::to_string(segments.conversion_segments_size()));
+  return key;
+}
+
+std::string MakeCandidatePrefetchKey(const Segments& segments,
+                                     absl::string_view document_prefix,
+                                     absl::string_view document_suffix) {
+  std::string key;
+  // Candidate vectors depend only on the conversion range and candidate
+  // surfaces.  Surrounding text belongs exclusively to the context key.
+  (void)document_prefix;
+  (void)document_suffix;
+  for (const converter::Segment& segment : segments.conversion_segments()) {
+    key.push_back('\0');
+    key.append(segment.key().data(), segment.key().size());
+    for (const size_t index : SelectDistinctCandidateSurfaces(segment)) {
+      key.push_back('\0');
+      key.append(segment.candidate(index).value.data(),
+                  segment.candidate(index).value.size());
+    }
+  }
+  return key;
+}
+
 bool HasCandidateInternalPhraseContext(const converter::Segment& segment) {
   if (segment.candidates_size() < 2) return false;
   const std::vector<size_t> selected =
@@ -576,11 +609,30 @@ bool AiRewriter::Rewrite(const ConversionRequest& request,
     const std::vector<ai_ranker::BatchSegmentInput> prefetch =
         BuildPrefetchBatch(*segments, preceding_text, trailing_text);
     if (!prefetch.empty()) {
-      // The client writes the request and returns without waiting for the
-      // response.  The ranker performs context encoding while Mozc continues
-      // accepting keystrokes; Space will consume the resulting cache.
       ai_ranker::Client client(pipe_name_);
-      client.PrefetchBatch(prefetch, 25);
+      // The context side is keyed only by surrounding document context, so a
+      // growing composition does not restart the same context encoder pass.
+      // Candidate-side work is keyed by the actual conversion range and is
+      // refreshed whenever that range/candidate set changes.
+      const std::string context_key = MakeContextPrefetchKey(
+          *segments, preceding_text, trailing_text);
+      const std::string candidate_key = MakeCandidatePrefetchKey(
+          *segments, preceding_text, trailing_text);
+      bool send_context = false;
+      bool send_candidates = false;
+      {
+        std::lock_guard<std::mutex> lock(prefetch_mutex_);
+        send_context = context_key != last_context_prefetch_key_;
+        send_candidates = candidate_key != last_candidate_prefetch_key_;
+      }
+      if (send_context && client.PrefetchContextBatch(prefetch, 25)) {
+        std::lock_guard<std::mutex> lock(prefetch_mutex_);
+        last_context_prefetch_key_ = context_key;
+      }
+      if (send_candidates && client.PrefetchCandidateBatch(prefetch, 25)) {
+        std::lock_guard<std::mutex> lock(prefetch_mutex_);
+        last_candidate_prefetch_key_ = candidate_key;
+      }
     }
     return false;
   }

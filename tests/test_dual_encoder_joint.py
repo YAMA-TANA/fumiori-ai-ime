@@ -163,11 +163,11 @@ def test_no_context_preserves_mozc_top(monkeypatch):
     assert len(runner.encoding_batches) == 0
 
 
-def test_space_cache_miss_queues_exact_request_prefetch_before_ranking(monkeypatch):
+def test_space_cache_miss_does_not_start_inference_on_pipe_thread(monkeypatch):
     mod = load_wrapper(monkeypatch)
     runner = mod.OnnxDualEncoderIMEReranker()
     result = runner.rank_batch(example())
-    assert [s['winner_id'] for s in result['segments']] == ['c1', 'c1']
-    assert len(runner.encoding_batches) == 1
-    assert len(runner.candidate_preloads) == 1
-    assert len(runner.wait_calls) == 2
+    assert [s['winner_id'] for s in result['segments']] == ['c0', 'c0']
+    assert len(runner.encoding_batches) == 0
+    assert len(runner.candidate_preloads) == 0
+    assert len(runner.wait_calls) == 1

@@ -407,9 +407,25 @@ def process_line(line: bytes, ranker: Any) -> Optional[bytes]:
         request = loads_strict(line.decode("utf-8"))
         if isinstance(request, dict) and "segments" in request:
             req_val = validate_batch_request(request)
-            if req_val["inference_trigger"] == "prefetch":
-                if hasattr(ranker, "prefetch_batch_async"):
+            trigger = req_val["inference_trigger"]
+            if trigger in {"prefetch", "context_prefetch", "candidate_prefetch"}:
+                queued = False
+                if trigger == "context_prefetch" and hasattr(
+                    ranker, "prefetch_context_batch_async"
+                ):
+                    ranker.prefetch_context_batch_async(req_val)
+                    queued = True
+                elif trigger == "candidate_prefetch" and hasattr(
+                    ranker, "prefetch_candidate_batch_async"
+                ):
+                    ranker.prefetch_candidate_batch_async(req_val)
+                    queued = True
+                elif hasattr(ranker, "prefetch_batch_async"):
+                    # Compatibility path for older clients that sent one
+                    # combined prefetch request.
                     ranker.prefetch_batch_async(req_val)
+                    queued = True
+                if queued:
                     response = {
                         "request_id": req_val["request_id"],
                         "segments": [
@@ -421,6 +437,14 @@ def process_line(line: bytes, ranker: Any) -> Optional[bytes]:
                             for segment in req_val["segments"]
                         ],
                     }
+                elif trigger == "context_prefetch" and hasattr(
+                    ranker, "prefetch_context_batch"
+                ):
+                    response = ranker.prefetch_context_batch(req_val)
+                elif trigger == "candidate_prefetch" and hasattr(
+                    ranker, "prefetch_candidate_batch"
+                ):
+                    response = ranker.prefetch_candidate_batch(req_val)
                 elif hasattr(ranker, "prefetch_batch"):
                     response = ranker.prefetch_batch(req_val)
                 else:
@@ -769,6 +793,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             ranker = OnnxDualEncoderIMEReranker(
                 settings=product_settings,
                 model_path=selected_model,
+                candidate_warmup_limit=100_000 if args.pipe else 0,
             )
             LOG.info(
                 "Dual-Encoder 70M ONNX model loaded in %.1f ms (device=%s, model=%s)",

@@ -66,8 +66,17 @@ class Client {
                  int timeout_ms,
                  std::vector<BatchSegmentResult>* results) const;
 
-  // Sends context-only work for predictor realtime conversion.  The request
-  // is write-only from the IME side so model inference never blocks typing.
+  // Sends only context-encoder work.  The request is write-only from the IME
+  // side so model inference never blocks typing.
+  bool PrefetchContextBatch(const std::vector<BatchSegmentInput>& segments,
+                            int timeout_ms) const;
+
+  // Sends only candidate-encoder work for the current conversion range.
+  bool PrefetchCandidateBatch(const std::vector<BatchSegmentInput>& segments,
+                              int timeout_ms) const;
+
+  // Compatibility entry point for older ranker binaries.  New Mozc code
+  // always uses the split methods above.
   bool PrefetchBatch(const std::vector<BatchSegmentInput>& segments,
                      int timeout_ms) const;
 

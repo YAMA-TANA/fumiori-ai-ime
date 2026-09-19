@@ -142,6 +142,20 @@ class OnnxDualEncoderIMEReranker(_BaseRanker):
             "segments": output,
         })
 
+    @staticmethod
+    def _prefetch_response(request: Dict[str, Any]) -> Dict[str, Any]:
+        return {
+            "request_id": request.get("request_id", "prefetch"),
+            "segments": [
+                {
+                    "id": str(segment["id"]),
+                    "winner_id": str(segment["candidates"][0]["id"]),
+                    "confidence": 0.0,
+                }
+                for segment in request.get("segments", [])
+            ],
+        }
+
     def rank_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
         request_id = request.get("request_id", "batch")
         segments = request.get("segments", [])
@@ -160,23 +174,13 @@ class OnnxDualEncoderIMEReranker(_BaseRanker):
             for segment in segments
             for candidate in segment.get("candidates", [])
         ]
-        # Space is read-only: never encode a context on the pipe request
-        # thread.  If the realtime prefetch worker is still encoding, wait for
-        # that worker rather than starting a second model call here.
+        # Space/Enter is read-only: never encode a context or candidate on the
+        # pipe request thread.  If either side is still being prefetched, wait
+        # briefly for the already-running workers.  A cache miss after that
+        # wait is a safe Mozc-order fallback; it must not start new inference.
         with self._joint_context_lock:
             vectors = self._get_cached_context_vectors(queries)
-        cache_ready = self._wait_for_prefetch_cache(
-            queries, words, timeout_seconds=0.0
-        )
-        if not cache_ready and not self._prefetch_active():
-            # Some Mozc paths do not emit realtime prefetch, and candidate
-            # lists can also change between realtime and Space.  Queue this
-            # exact request as a background prefetch, then wait for it.  The
-            # named-pipe thread still performs no model forward pass.
-            self.prefetch_batch_async(request)
-            cache_ready = self._wait_for_prefetch_cache(queries, words)
-        elif not cache_ready:
-            cache_ready = self._wait_for_prefetch_cache(queries, words)
+        cache_ready = self._wait_for_prefetch_cache(queries, words)
         if not cache_ready:
             return self._baseline_batch_response(request)
         if vectors is None:
@@ -276,26 +280,43 @@ class OnnxDualEncoderIMEReranker(_BaseRanker):
             })
         return {"request_id": request_id, "segments": output}
 
-    def prefetch_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        """Warm exactly the same unique hypothetical contexts used on Space."""
+    def prefetch_context_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Warm the joint context side only, once per context generation."""
         segments = request.get("segments", [])
         if not segments:
             return {"request_id": request.get("request_id", "prefetch"),
                     "segments": []}
         _, queries = _context_plan(segments, self.context_chars)
+        signature = tuple(queries)
+        cache_lock = getattr(self, "_cache_lock", None)
+        if cache_lock is None:
+            if signature != getattr(self, "_context_prefetch_signature", ()):
+                getattr(self, "cache", {}).clear()
+                self._context_prefetch_signature = signature
+        else:
+            with cache_lock:
+                if signature != self._context_prefetch_signature:
+                    self.context_cache.clear()
+                    self.context_cache_signature = ()
+                    self._context_prefetch_signature = signature
         self._joint_context_vectors(queries)
+        return self._prefetch_response(request)
+
+    def prefetch_candidate_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Warm candidate embeddings only; no context encoder call here."""
+        segments = request.get("segments", [])
+        if not segments:
+            return {"request_id": request.get("request_id", "prefetch"),
+                    "segments": []}
         self.preload_candidates([
             _candidate_text(candidate)
             for segment in segments
             for candidate in segment.get("candidates", [])
             if _candidate_text(candidate)
         ])
-        return {
-            "request_id": request.get("request_id", "prefetch"),
-            "segments": [
-                {"id": str(seg["id"]),
-                 "winner_id": str(seg["candidates"][0]["id"]),
-                 "confidence": 0.0}
-                for seg in segments
-            ],
-        }
+        return self._prefetch_response(request)
+
+    def prefetch_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        """Backward-compatible combined prefetch for older clients."""
+        self.prefetch_context_batch(request)
+        return self.prefetch_candidate_batch(request)
