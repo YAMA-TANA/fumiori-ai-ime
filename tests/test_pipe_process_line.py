@@ -1,8 +1,30 @@
 import json
+from pathlib import Path
+
+import pytest
+
 from ranker.ranker import process_line
 from ranker.onnx_dual_encoder_ranker import OnnxDualEncoderIMEReranker
 
 
+def _dual_encoder_model_available() -> bool:
+    repo_root = Path(__file__).resolve().parents[1]
+    return any(
+        (repo_root / relative).is_file()
+        for relative in (
+            "build/onnx-model-70m-dual-encoder/dual-encoder-70m-int8.onnx",
+            "build/onnx-model-70m-dual-encoder/dual-encoder-70m-fp16.onnx",
+            "build/onnx-model-70m-dual-encoder/dual-encoder-70m-fp32.onnx",
+            "models/onnx/dual-encoder-70m-int8.onnx",
+            "models/onnx/dual-encoder-70m-fp16.onnx",
+        )
+    )
+
+
+@pytest.mark.skipif(
+    not _dual_encoder_model_available(),
+    reason="Dual-Encoder ONNX integration test requires the optional model bundle",
+)
 def test_process_line_dual_encoder():
     ranker = OnnxDualEncoderIMEReranker()
     req = {
