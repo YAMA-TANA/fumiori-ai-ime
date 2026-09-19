@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param()
+param([switch]$CheckSources)
 
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -8,32 +8,52 @@ $RuntimeTarget = Join-Path $InstallRoot 'ai_runtime\YamatanaAIIME.exe'
 $ServerTarget = Join-Path $InstallRoot 'mozc_server.exe'
 $BrokerTarget = Join-Path $InstallRoot 'mozc_broker.exe'
 $CacheServiceName = 'MozcCacheService'
-$RuntimeSource = Join-Path $Root 'hotfix\YamatanaAIIME.exe'
-$ServerSource = Join-Path $Root 'hotfix\mozc_server.exe'
-if (-not (Test-Path -LiteralPath $RuntimeSource)) {
-    $RuntimeSource = Join-Path $Root 'dist\YamatanaAIIME\YamatanaAIIME.exe'
-}
-if (-not (Test-Path -LiteralPath $ServerSource)) {
-    $ServerSource = Get-ChildItem (Join-Path $Root 'build\mozc-src\src\bazel-out') -Recurse -Filter 'mozc_server.exe.exe' -File |
+$RuntimeSource = @(
+    Join-Path $Root 'hotfix\YamatanaAIIME.exe'
+    Join-Path $Root 'dist\YamatanaAIIME\YamatanaAIIME.exe'
+) | Where-Object { Test-Path -LiteralPath $_ } |
+    Get-Item | Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1 -ExpandProperty FullName
+$ServerSources = @(Join-Path $Root 'hotfix\mozc_server.exe')
+$BazelOutput = Join-Path $Root 'build\mozc-src\src\bazel-out'
+if (Test-Path -LiteralPath $BazelOutput) {
+    $ServerSources += Get-ChildItem -LiteralPath $BazelOutput -Recurse -Filter 'mozc_server.exe.exe' -File |
         Where-Object { $_.FullName -match 'x64_windows-opt-.*\\bin\\server\\mozc_server\.exe\.exe$' } |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 1 -ExpandProperty FullName
+        Select-Object -ExpandProperty FullName
 }
+$ServerSource = $ServerSources | Where-Object { Test-Path -LiteralPath $_ } |
+    Get-Item | Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1 -ExpandProperty FullName
+
+foreach ($source in @($RuntimeSource, $ServerSource)) {
+    if (-not $source -or -not (Test-Path -LiteralPath $source)) {
+        throw "Hotfix file not found: $source"
+    }
+}
+
+# A Mozc-only update can otherwise pair a new 15-candidate sender with an
+# older frozen Python runtime that still rejects those requests.
+$ProtocolSource = Join-Path $Root 'ranker\protocol.py'
+if ((Test-Path -LiteralPath $ProtocolSource) -and
+    (Get-Item -LiteralPath $RuntimeSource).LastWriteTime -lt
+    (Get-Item -LiteralPath $ProtocolSource).LastWriteTime) {
+    throw 'The AI runtime predates ranker\protocol.py. Rebuild it with PyInstaller before applying the hotfix.'
+}
+Write-Host "Runtime source: $RuntimeSource"
+Write-Host "Mozc server source: $ServerSource"
+if ($CheckSources) { return }
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
 $principal = [Security.Principal.WindowsPrincipal]$identity
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     $scriptPath = (Resolve-Path $PSCommandPath).Path
-    $child = Start-Process powershell.exe -Verb RunAs -Wait -PassThru -ArgumentList @(
+    $child = Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden -PassThru -ArgumentList @(
         '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $scriptPath
     )
+    # Wait for the elevated script itself. Start-Process -Wait also follows the
+    # tray process it launches, which remains alive for the whole login session.
+    $child.WaitForExit()
     exit $child.ExitCode
-}
-
-foreach ($source in @($RuntimeSource, $ServerSource)) {
-    if (-not (Test-Path -LiteralPath $source)) {
-        throw "Hotfix file not found: $source"
-    }
 }
 
 $processNames = @(

@@ -198,6 +198,30 @@ class RankerTests(unittest.TestCase):
                 }],
             }, normalized)
 
+    def test_batch_protocol_accepts_fifteen_candidates_per_segment(self):
+        req = {
+            "request_id": "candidate-window-boundary",
+            "inference_trigger": "explicit",
+            "segments": [{
+                "id": "s0",
+                "preceding_text": "彼の顔の大きな",
+                "following_text": "",
+                "read": "はな",
+                "candidates": [
+                    {"id": f"c{i}", "text": f"候補{i}", "rank": i + 1}
+                    for i in range(15)
+                ],
+            }],
+        }
+        self.assertEqual(
+            len(validate_batch_request(req)["segments"][0]["candidates"]), 15
+        )
+        req["segments"][0]["candidates"].append(
+            {"id": "c15", "text": "候補15", "rank": 16}
+        )
+        with self.assertRaises(ProtocolError):
+            validate_batch_request(req)
+
     def test_response_cache_ignores_request_id_and_expires(self):
         class CountingRanker:
             def __init__(self):
