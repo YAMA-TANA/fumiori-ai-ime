@@ -6,6 +6,7 @@ $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $InstallRoot = 'C:\Program Files (x86)\Yamatana AI IME'
 $RuntimeTarget = Join-Path $InstallRoot 'ai_runtime\YamatanaAIIME.exe'
 $ServerTarget = Join-Path $InstallRoot 'mozc_server.exe'
+$CacheServiceName = 'MozcCacheService'
 $RuntimeSource = Join-Path $Root 'hotfix\YamatanaAIIME.exe'
 $ServerSource = Join-Path $Root 'hotfix\mozc_server.exe'
 if (-not (Test-Path -LiteralPath $RuntimeSource)) {
@@ -37,11 +38,25 @@ foreach ($source in @($RuntimeSource, $ServerSource)) {
 $processNames = @(
     'YamatanaAIIME'
     'mozc_broker'
+    'mozc_cache_service'
     'mozc_server'
     'mozc_renderer'
 )
 
 function Stop-LockingProcesses {
+    # MozcCacheService keeps mozc_server.exe open even after the converter
+    # process itself is terminated. Stop the service before killing the
+    # remaining processes so the binary can actually be replaced.
+    $service = Get-Service -Name $CacheServiceName -ErrorAction SilentlyContinue
+    if ($service -and $service.Status -ne 'Stopped') {
+        Stop-Service -Name $CacheServiceName -Force -ErrorAction SilentlyContinue
+        try {
+            $service.WaitForStatus('Stopped', '00:00:05')
+        } catch {
+            # The process-kill pass below is still useful if SCM is slow.
+        }
+    }
+
     foreach ($name in $processNames) {
         # Start-Process keeps taskkill's "process not found" stderr out of
         # PowerShell's native-command error pipeline. Exit code 128 is normal.
@@ -49,6 +64,12 @@ function Stop-LockingProcesses {
             -ArgumentList @('/F', '/T', '/IM', "$name.exe") `
             -WindowStyle Hidden -Wait -PassThru | Out-Null
     }
+}
+
+$cacheServiceWasRunning = $false
+$initialCacheService = Get-Service -Name $CacheServiceName -ErrorAction SilentlyContinue
+if ($initialCacheService -and $initialCacheService.Status -eq 'Running') {
+    $cacheServiceWasRunning = $true
 }
 
 function Copy-HotfixFile {
@@ -100,15 +121,21 @@ function Copy-HotfixFile {
 
 Stop-LockingProcesses
 Start-Sleep -Milliseconds 250
-Copy-HotfixFile -Source $RuntimeSource -Destination $RuntimeTarget
-Copy-HotfixFile -Source $ServerSource -Destination $ServerTarget
+try {
+    Copy-HotfixFile -Source $RuntimeSource -Destination $RuntimeTarget
+    Copy-HotfixFile -Source $ServerSource -Destination $ServerTarget
 
-$check = Start-Process -FilePath (Join-Path $InstallRoot 'ai_runtime\YamatanaAIIME.exe') -ArgumentList '--check' -Wait -PassThru
-if ($check.ExitCode -ne 0) {
-    throw "Installed runtime self-test failed with exit code $($check.ExitCode)"
-}
+    $check = Start-Process -FilePath (Join-Path $InstallRoot 'ai_runtime\YamatanaAIIME.exe') -ArgumentList '--check' -Wait -PassThru
+    if ($check.ExitCode -ne 0) {
+        throw "Installed runtime self-test failed with exit code $($check.ExitCode)"
+    }
 
-if (@(Get-Process -Name YamatanaAIIME -ErrorAction SilentlyContinue).Count -eq 0) {
-    Start-Process -FilePath (Join-Path $InstallRoot 'ai_runtime\YamatanaAIIME.exe')
+    if (@(Get-Process -Name YamatanaAIIME -ErrorAction SilentlyContinue).Count -eq 0) {
+        Start-Process -FilePath (Join-Path $InstallRoot 'ai_runtime\YamatanaAIIME.exe')
+    }
+} finally {
+    if ($cacheServiceWasRunning) {
+        Start-Service -Name $CacheServiceName -ErrorAction SilentlyContinue
+    }
 }
 Write-Host 'Yamatana AI IME hotfix applied successfully.' -ForegroundColor Green
