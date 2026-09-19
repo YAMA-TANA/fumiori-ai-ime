@@ -39,6 +39,12 @@ class FakeBase:
         return (all(query in self.cache for query in queries)
                 and all(word in self.candidate_cache for word in words if word))
 
+    def _prefetch_active(self):
+        return False
+
+    def prefetch_batch_async(self, request):
+        self.prefetch_batch(request)
+
     def preload_candidates(self, words):
         self.candidate_preloads.append(tuple(words))
         self.candidate_cache.update(word for word in words if word)
@@ -157,11 +163,11 @@ def test_no_context_preserves_mozc_top(monkeypatch):
     assert len(runner.encoding_batches) == 0
 
 
-def test_space_cache_miss_returns_mozc_without_encoding_or_candidate_cache_write(monkeypatch):
+def test_space_cache_miss_queues_exact_request_prefetch_before_ranking(monkeypatch):
     mod = load_wrapper(monkeypatch)
     runner = mod.OnnxDualEncoderIMEReranker()
     result = runner.rank_batch(example())
-    assert [s['winner_id'] for s in result['segments']] == ['c0', 'c0']
-    assert runner.encoding_batches == []
-    assert runner.candidate_preloads == []
-    assert len(runner.wait_calls) == 1
+    assert [s['winner_id'] for s in result['segments']] == ['c1', 'c1']
+    assert len(runner.encoding_batches) == 1
+    assert len(runner.candidate_preloads) == 1
+    assert len(runner.wait_calls) == 2

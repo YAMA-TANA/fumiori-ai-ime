@@ -310,6 +310,15 @@ class OnnxDualEncoderIMEReranker:
                     return False
                 self._prefetch_condition.wait(timeout=remaining)
 
+    def _prefetch_active(self) -> bool:
+        """Return whether a background prefetch is queued or running."""
+        with self._prefetch_condition:
+            return (
+                self._pending_prefetch is not None
+                or (self._prefetch_worker is not None
+                    and self._prefetch_worker.is_alive())
+            )
+
     def compute_length_and_mora_penalty(self, word: str, reading: str) -> float:
         """Penalize candidate words whose character length departs from expected reading."""
         if not reading or not word:

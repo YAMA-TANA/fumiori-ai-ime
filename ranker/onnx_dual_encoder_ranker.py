@@ -149,6 +149,12 @@ class OnnxDualEncoderIMEReranker(_BaseRanker):
             return {"request_id": request_id, "segments": []}
 
         rows, queries = _context_plan(segments, self.context_chars)
+        if not any(
+            content_signal_length(prefix) >= 2
+            for row in rows
+            for prefix in row
+        ):
+            return self._baseline_batch_response(request)
         words = [
             _candidate_text(candidate)
             for segment in segments
@@ -159,7 +165,18 @@ class OnnxDualEncoderIMEReranker(_BaseRanker):
         # that worker rather than starting a second model call here.
         with self._joint_context_lock:
             vectors = self._get_cached_context_vectors(queries)
-        cache_ready = self._wait_for_prefetch_cache(queries, words)
+        cache_ready = self._wait_for_prefetch_cache(
+            queries, words, timeout_seconds=0.0
+        )
+        if not cache_ready and not self._prefetch_active():
+            # Some Mozc paths do not emit realtime prefetch, and candidate
+            # lists can also change between realtime and Space.  Queue this
+            # exact request as a background prefetch, then wait for it.  The
+            # named-pipe thread still performs no model forward pass.
+            self.prefetch_batch_async(request)
+            cache_ready = self._wait_for_prefetch_cache(queries, words)
+        elif not cache_ready:
+            cache_ready = self._wait_for_prefetch_cache(queries, words)
         if not cache_ready:
             return self._baseline_batch_response(request)
         if vectors is None:
