@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
-  [string]$ProductVersion = '2.0.0.0',
-  [string]$ReleaseLabel = '2.0.0-beta',
+  [string]$ProductVersion = '2.0.10.0',
+  [string]$ReleaseLabel = '2.0.10-beta',
   [switch]$SkipMozcDependencies
 )
 
@@ -24,6 +24,8 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Python tests failed' }
   python -m PyInstaller --noconfirm --clean ai_ime_tray.spec
   if ($LASTEXITCODE -ne 0) { throw 'PyInstaller build failed' }
+  $CheckProcess = Start-Process (Join-Path $RepoRoot 'dist\YamatanaAIIME\YamatanaAIIME.exe') -ArgumentList '--check' -Wait -PassThru
+  if ($CheckProcess.ExitCode -ne 0) { throw "PyInstaller executable startup verification failed with exit code $($CheckProcess.ExitCode)" }
 
   & (Join-Path $PSScriptRoot 'prepare_mozc_source.ps1') -SkipDependencyDownload:$SkipMozcDependencies
   if (-not $?) { throw 'Mozc source preparation failed' }
@@ -71,6 +73,8 @@ try {
   $Hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $Msi).Hash
   $Line = "$Hash  $([IO.Path]::GetFileName($Msi))`n"
   [IO.File]::WriteAllText((Join-Path $RepoRoot 'release\SHA256SUMS.txt'), $Line, [Text.UTF8Encoding]::new($false))
+  Copy-Item (Join-Path $PSScriptRoot 'install-msi.ps1') (Join-Path $RepoRoot 'release\install-msi.ps1') -Force
+  Copy-Item (Join-Path $PSScriptRoot 'Install-Yamatana-AI-IME.cmd') (Join-Path $RepoRoot 'release\Install-Yamatana-AI-IME.cmd') -Force
   Write-Host "RELEASE_BUILD_PASS: $Msi $Hash"
 } finally {
   Pop-Location

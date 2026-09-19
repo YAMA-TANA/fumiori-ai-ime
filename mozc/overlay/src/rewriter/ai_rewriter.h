@@ -2,6 +2,7 @@
 #define MOZC_REWRITER_AI_REWRITER_H_
 
 #include <string>
+#include <mutex>
 
 #include "rewriter/rewriter_interface.h"
 
@@ -25,12 +26,24 @@ class AiRewriter final : public RewriterInterface {
   std::optional<ResizeSegmentsRequest> CheckResizeSegmentsRequest(
       const ConversionRequest& request,
       const Segments& segments) const override;
+  // Starts the context prefetch for the next conversion after Mozc has
+  // finished committing the current conversion.  This is intentionally
+  // separate from Rewrite(): Rewrite() is called while the composition is
+  // still changing and may only warm candidate vectors there.
+  void Finish(const ConversionRequest& request,
+              const Segments& segments) const;
   bool Rewrite(const ConversionRequest& request,
                Segments* segments) const override;
 
  private:
   const dictionary::DictionaryInterface* dictionary_;
   std::wstring pipe_name_;
+  // RealtimeDecoder invokes Rewrite repeatedly while one composition grows.
+  // Context depends on the surrounding document, whereas candidates depend
+  // on the changing conversion range, so they need separate generations.
+  mutable std::mutex prefetch_mutex_;
+  mutable std::string last_context_prefetch_key_;
+  mutable std::string last_candidate_prefetch_key_;
 };
 
 }  // namespace mozc

@@ -30,18 +30,20 @@
 # proto-file: protocol/renderer_style.proto
 # proto-message: RendererStyle
 #
-# Yamatana AI IME modernized Windows candidate-window theme.
-# Keep the upstream renderer and behavior intact while replacing Mozc's
-# compact/legacy visual treatment with a calmer Windows 11-like surface.
-window_border: 1
-scrollbar_width: 3
+# Fumiori AI IME candidate-window theme.
+# The candidate list uses a deliberately limited 8-bit palette. Hard edges,
+# stepped corners, and a bright focused card make the AI's choice feel like a
+# small game hit without changing Mozc's input behavior.
+window_border: 2
+footer_height: 32
+scrollbar_width: 4
 row_rect_padding: 4
-border_color { r: 218 g: 221 b: 227 }
+border_color { r: 31 g: 23 b: 56 }
 
 shortcut_style {
   font_size: 13
-  foreground_color { r: 103 g: 109 b: 120 }
-  background_color { r: 247 g: 248 b: 250 }
+  foreground_color { r: 31 g: 23 b: 56 }
+  background_color { r: 255 g: 211 b: 72 }
   left_padding: 10
   right_padding: 10
 }
@@ -50,12 +52,13 @@ gap1_style { font_size: 15 }
 
 candidate_style {
   font_size: 15
-  foreground_color { r: 30 g: 32 b: 36 }
+  foreground_color { r: 31 g: 23 b: 56 }
+  background_color { r: 255 g: 244 b: 186 }
 }
 
 description_style {
-  font_size: 12
-  foreground_color { r: 112 g: 117 b: 126 }
+  font_size: 11
+  foreground_color { r: 139 g: 55 b: 108 }
   right_padding: 12
 }
 
@@ -64,31 +67,31 @@ column_minimum_width_string: "そのほかの文字種"
 
 footer_style {
   font_size: 12
-  foreground_color { r: 90 g: 95 b: 104 }
-  left_padding: 8
-  right_padding: 8
+  foreground_color { r: 255 g: 255 b: 255 }
+  left_padding: 10
+  right_padding: 10
 }
 
 footer_sub_label_style {
   font_size: 10
-  foreground_color { r: 145 g: 149 b: 157 }
-  left_padding: 8
-  right_padding: 8
+  foreground_color { r: 226 g: 207 b: 248 }
+  left_padding: 10
+  right_padding: 10
 }
 
-# Flat footer instead of the old beveled/gradient treatment.
-footer_border_colors { r: 229 g: 231 b: 235 }
-footer_top_color { r: 250 g: 250 b: 251 }
-footer_bottom_color { r: 250 g: 250 b: 251 }
+# Purple footer strip gives the candidate list a clear game-board base.
+footer_border_colors { r: 255 g: 111 b: 160 }
+footer_top_color { r: 31 g: 23 b: 56 }
+footer_bottom_color { r: 73 g: 38 b: 103 }
 logo_file_name: "candidate_window_logo.tiff"
 
-# Soft focus treatment: visible enough for keyboard navigation without the
-# saturated legacy-blue block.
-focused_background_color { r: 238 g: 246 b: 255 }
-focused_border_color { r: 151 g: 194 b: 255 }
+# Focused candidate is the "hit" card.  Text remains dark for readability.
+# Mint is bright enough for dark candidate text and reads as a successful hit.
+focused_background_color { r: 76 g: 222 b: 169 }
+focused_border_color { r: 255 g: 72 b: 132 }
 
-scrollbar_background_color { r: 247 g: 248 b: 250 }
-scrollbar_indicator_color { r: 177 g: 182 b: 191 }
+scrollbar_background_color { r: 255 g: 230 b: 145 }
+scrollbar_indicator_color { r: 87 g: 61 b: 190 }
 
 infolist_style {
   caption_string: "用例"
@@ -96,21 +99,27 @@ infolist_style {
   caption_padding: 4
   caption_style {
     font_size: 12
-    left_padding: 8
+    foreground_color { r: 31 g: 23 b: 56 }
+    background_color { r: 255 g: 211 b: 72 }
+    left_padding: 10
+    right_padding: 10
   }
-  caption_background_color { r: 248 g: 249 b: 251 }
-  window_border: 1
-  row_rect_padding: 5
+  caption_background_color { r: 255 g: 211 b: 72 }
+  window_border: 2
+  row_rect_padding: 4
   window_width: 340
   title_style {
     font_size: 15
-    left_padding: 10
+    foreground_color { r: 31 g: 23 b: 56 }
+    left_padding: 12
   }
   description_style {
     font_size: 12
+    foreground_color { r: 139 g: 55 b: 108 }
     left_padding: 18
+    right_padding: 12
   }
-  border_color { r: 218 g: 221 b: 227 }
-  focused_background_color { r: 238 g: 246 b: 255 }
-  focused_border_color { r: 151 g: 194 b: 255 }
+  border_color { r: 31 g: 23 b: 56 }
+  focused_background_color { r: 76 g: 222 b: 169 }
+  focused_border_color { r: 255 g: 72 b: 132 }
 }

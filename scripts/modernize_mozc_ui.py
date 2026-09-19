@@ -19,8 +19,8 @@ def patch_candidate_window(path: Path) -> None:
         path,
         "constexpr int kIndicatorWidthInDefaultDPI = 4;\n",
         "constexpr int kIndicatorWidthInDefaultDPI = 4;\n"
-        "constexpr int kModernWindowCornerRadiusInDefaultDPI = 12;\n"
-        "constexpr int kModernSelectionCornerRadiusInDefaultDPI = 8;\n"
+        "constexpr int kModernWindowCornerRadiusInDefaultDPI = 8;\n"
+        "constexpr int kModernSelectionCornerRadiusInDefaultDPI = 4;\n"
         "constexpr int kModernSelectionHorizontalInsetInDefaultDPI = 4;\n"
         "constexpr int kModernSelectionVerticalInsetInDefaultDPI = 2;\n",
         "modern UI constants",
@@ -39,6 +39,17 @@ def patch_candidate_window(path: Path) -> None:
         "}\n\n"
         "void DrawRoundedSurface(HDC dc, const RECT& rect, COLORREF fill_color,\n"
         "                        COLORREF border_color, int radius) {\n"
+        "  // Keep the corners as hard pixel steps instead of anti-aliased curves.\n"
+        "  const int step = radius > 0 ? radius : 1;\n"
+        "  const POINT points[] = {\n"
+        "      {rect.left + step, rect.top},\n"
+        "      {rect.right - step, rect.top},\n"
+        "      {rect.right, rect.top + step},\n"
+        "      {rect.right, rect.bottom - step},\n"
+        "      {rect.right - step, rect.bottom},\n"
+        "      {rect.left + step, rect.bottom},\n"
+        "      {rect.left, rect.bottom - step},\n"
+        "      {rect.left, rect.top + step}};\n"
         "  HBRUSH brush = ::CreateSolidBrush(fill_color);\n"
         "  HPEN pen = ::CreatePen(PS_SOLID, 1, border_color);\n"
         "  if (brush == nullptr || pen == nullptr) {\n"
@@ -49,8 +60,7 @@ def patch_candidate_window(path: Path) -> None:
         "  }\n"
         "  HGDIOBJ old_brush = ::SelectObject(dc, brush);\n"
         "  HGDIOBJ old_pen = ::SelectObject(dc, pen);\n"
-        "  ::RoundRect(dc, rect.left, rect.top, rect.right, rect.bottom, radius,\n"
-        "              radius);\n"
+        "  ::Polygon(dc, points, std::size(points));\n"
         "  ::SelectObject(dc, old_pen);\n"
         "  ::SelectObject(dc, old_brush);\n"
         "  ::DeleteObject(pen);\n"
@@ -58,12 +68,24 @@ def patch_candidate_window(path: Path) -> None:
         "}\n\n"
         "void DrawRoundedOutline(HDC dc, const RECT& rect, COLORREF border_color,\n"
         "                        int radius) {\n"
+        "  const int step = radius > 0 ? radius : 1;\n"
+        "  const POINT points[] = {\n"
+        "      {rect.left + step, rect.top},\n"
+        "      {rect.right - step, rect.top},\n"
+        "      {rect.right, rect.top + step},\n"
+        "      {rect.right, rect.bottom - step},\n"
+        "      {rect.right - step, rect.bottom},\n"
+        "      {rect.left + step, rect.bottom},\n"
+        "      {rect.left, rect.bottom - step},\n"
+        "      {rect.left, rect.top + step}};\n"
         "  HPEN pen = ::CreatePen(PS_SOLID, 1, border_color);\n"
         "  if (pen == nullptr) return;\n"
         "  HGDIOBJ old_pen = ::SelectObject(dc, pen);\n"
         "  HGDIOBJ old_brush = ::SelectObject(dc, ::GetStockObject(NULL_BRUSH));\n"
-        "  ::RoundRect(dc, rect.left, rect.top, rect.right, rect.bottom, radius,\n"
-        "              radius);\n"
+        "  ::Polyline(dc, points, std::size(points));\n"
+        "  ::MoveToEx(dc, points[std::size(points) - 1].x,\n"
+        "             points[std::size(points) - 1].y, nullptr);\n"
+        "  ::LineTo(dc, points[0].x, points[0].y);\n"
         "  ::SelectObject(dc, old_brush);\n"
         "  ::SelectObject(dc, old_pen);\n"
         "  ::DeleteObject(pen);\n"
@@ -71,8 +93,16 @@ def patch_candidate_window(path: Path) -> None:
         "void ApplyRoundedWindowRegion(HWND hwnd, int width, int height,\n"
         "                              int radius) {\n"
         "  if (hwnd == nullptr || width <= 0 || height <= 0 || radius <= 0) return;\n"
-        "  HRGN region = ::CreateRoundRectRgn(0, 0, width + 1, height + 1, radius,\n"
-        "                                     radius);\n"
+        "  const POINT points[] = {\n"
+        "      {radius, 0},\n"
+        "      {width - radius, 0},\n"
+        "      {width, radius},\n"
+        "      {width, height - radius},\n"
+        "      {width - radius, height},\n"
+        "      {radius, height},\n"
+        "      {0, height - radius},\n"
+        "      {0, radius}};\n"
+        "  HRGN region = ::CreatePolygonRgn(points, std::size(points), WINDING);\n"
         "  if (region == nullptr) return;\n"
         "  if (::SetWindowRgn(hwnd, region, FALSE) == 0) {\n"
         "    ::DeleteObject(region);\n"
@@ -84,7 +114,7 @@ def patch_candidate_window(path: Path) -> None:
     replace_once(
         path,
         "  indicator_width_ = kIndicatorWidthInDefaultDPI * scale_factor;\n",
-        "  // Yamatana UI intentionally removes the legacy Mozc footer logo.\n"
+        "  // Fumiori UI intentionally removes the legacy Mozc footer logo.\n"
         "  footer_logo_.reset();\n"
         "  footer_logo_display_size_ = Size(0, 0);\n\n"
         "  indicator_width_ = kIndicatorWidthInDefaultDPI * scale_factor;\n",
@@ -145,7 +175,12 @@ def patch_candidate_window(path: Path) -> None:
 
 def patch_ai_rewriter(path: Path) -> None:
     text = path.read_text(encoding="utf-8")
-    badge_marker = "// Show the badge only when AI actually promotes a non-Mozc-top"
+    # The pinned overlay already owns the chain badge implementation.  Keep
+    # this legacy-source patch step idempotent because prepare_mozc_source.ps1
+    # copies overlay files before invoking this script.
+    if "void MarkRerankedCandidate(" in text or 'description.append("CHAIN +1")' in text:
+        return
+    badge_marker = "// Show a compact chain badge only when AI actually promotes"
     if badge_marker in text:
         return
 
@@ -159,13 +194,13 @@ def patch_ai_rewriter(path: Path) -> None:
         "  if (top_promoted) {\n"
         "    converter::Candidate* reranked_candidate = segment->mutable_candidate(0);\n"
         "    reranked_candidate->attributes |= converter::Attribute::RERANKED;\n"
-        "    // Show the badge only when AI actually promotes a non-Mozc-top\n"
-        "    // candidate to rank 1. Lower-rank shuffles are intentionally silent.\n"
-        "    if (reranked_candidate->description.find(\"AI\") == std::string::npos) {\n"
+        "    // Show a compact chain badge only when AI actually promotes a\n"
+        "    // non-Mozc-top candidate to rank 1. Lower-rank shuffles remain silent.\n"
+        "    if (reranked_candidate->description.find(\"CHAIN\") == std::string::npos) {\n"
         "      if (!reranked_candidate->description.empty()) {\n"
         "        reranked_candidate->description.append(\"  \");\n"
         "      }\n"
-        "      reranked_candidate->description.append(\"AI\");\n"
+        "      reranked_candidate->description.append(\"CHAIN +1\");\n"
         "    }\n"
         "  }\n"
         "  return true;\n"
@@ -215,7 +250,7 @@ def patch_ai_rewriter(path: Path) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Apply Yamatana AI IME visual patches to a prepared Mozc checkout."
+        description="Apply Fumiori AI IME visual patches to a prepared Mozc checkout."
     )
     parser.add_argument(
         "--checkout",

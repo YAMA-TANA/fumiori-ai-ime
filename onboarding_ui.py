@@ -1,4 +1,4 @@
-"""First-run guide for Yamatana AI IME.
+"""First-run guide for Fumiori AI IME.
 
 Hallmark · pre-emit critique: P5 H5 E5 S5 R5 V5
 Hallmark · macrostructure: Narrative Workflow · genre: playful · theme: Hum
@@ -143,7 +143,7 @@ class OnboardingWindow:
             (
                 "01",
                 "入力方法を選ぶ",
-                "タスクバー右下の「あ / A」、または Win + Space から\nYamatana AI IME を選びます。",
+                f"タスクバー右下の「あ / A」、または Win + Space から\n{PRODUCT_NAME} を選びます。",
                 TOKENS["pear"],
             ),
             (

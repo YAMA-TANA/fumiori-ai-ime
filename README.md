@@ -4,19 +4,51 @@ Fumiori AI IMEは、Mozcの変換候補をローカルAI rerankerで並べ替え
 
 > **Beta / 未署名** — 現在公開中のBetaは検証用の未署名ビルドです。Windowsの警告が表示される場合があります。SignPath FoundationによるOSSコード署名の申請準備中であり、署名済みであるかのような表示は行いません。
 
-> **最新リリース: v2.0.10-beta** — [GitHub Releaseからダウンロード](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.0.10-beta)できます。Fumiori AI IMEの表示名、ドット絵ゲーム風候補ウィンドウ、`CHAIN +1` の連鎖演出を含むベータ版です。
+> **最新リリース: v2.1.1-beta** — [GitHub Releaseからダウンロード](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)できます。Dual-Encoder 70M を標準ランタイムとし、入力中の候補ベクトル先読みと15候補の再順位付けに対応しています。
 
-## Fumioriの変換体験
+## まず試してほしいこと
 
-変換候補ウィンドウは、8bitゲームを思わせる限定色とステップ角のカードUIで表示します。AIが文脈に合う候補を選んだときは `CHAIN +1` を表示し、変換を楽しく確認できるようにしています。見た目はゲーム風でも、Mozcの通常変換とAI失敗時のフェイルセーフは維持しています。
+同じ読みでも、文脈で漢字が変わる日本語入力を、AIに選ばせるIMEです。
+
+```text
+彼の顔のはな       → 鼻
+庭には美しいはな   → 花
+役員が稟議書をけっさい → 決裁
+オンラインで代金をけっさい → 決済
+明日の天気予報はあめだ → 雨
+弟に御土産としてあめを買う → 飴
+```
+
+Mozcが作った候補をAIが読み直すため、AIが勝手に文章を生成するのではなく、普段のMozcの安心感を残したまま「いちばん自然な候補」を先に出せます。
+
+同じ「あめ」でも、天気の話なら「雨」、お土産の話なら「飴」。このような文脈による使い分けが、デモの見どころです。
+
+実際のMozc候補を使った210例の検証では、自然な表記を含めた正解率が **72.4%（Mozcのみ）から99.1%（AI併用）** になりました。これは検証用データでの結果であり、製品全体の精度を保証する数字ではありません。条件・データ・スクリプトは公開しています。
+
+### ドット絵ゲーム風の変換体験
+
+変換候補ウィンドウは、8bitゲームを思わせる限定色、カクカクしたステップ角、選択中の「ヒット」カードで構成しています。AIが候補を入れ替えたときは `CHAIN +1` が表示され、文脈に合う候補を選ぶほど連鎖が続くように見えるデザインです。見た目はゲーム風でも、変換の確定操作とMozcのフェイルセーフは従来どおりです。
+
+詳しい背景と実例はこちらです。
+
+- [Qiita：AIに変換候補を選ばせるIMEを作ってみた](https://qiita.com/yamatana364/items/c9b640e64070a798c4ff)
+- [Zenn：AIに変換候補を選ばせるIMEを作ってみた](https://zenn.dev/yamatana/articles/92cd6e19eb8d45)
+
+### 変換候補が変わる様子
+
+冒頭の「明日の天気予報は雨だ」の変換から、後半の「御土産」の候補選びまでを収録しています。Mozcの候補をAIが文脈に合わせて選び、確定候補を入れ替える流れです。
+
+![AI-IMEの変換候補デモ](pr-video/ai-ime-demo.gif)
 
 ## 特徴
 
 - Mozcベースの通常変換を保ったまま、AI有効時だけ候補を再順位付け
-- 70M級Ruri v3 student rerankerをIME向けに蒸留し、全候補を1バッチでONNX Runtime実行
+- Dual-Encoder 70Mを標準エンジンとして、文脈ベクトルと候補ベクトルの内積で高速に再順位付け
+- 入力中に文脈と候補ベクトルを先読みし、明示変換では最大15候補を1バッチで処理
+- 旧Cross-Encoder LoRAアンサンブルは既存モデルとの互換フォールバックとして利用可能
 - 入力、前後文脈、カスタム指示、辞書、推論をPC内だけで処理
 - タスクバートレイからAI ON/OFF、文脈保持、文書分野、カスタム指示、CPU/GPU設定を変更
-- AIは初期OFF。トレイは状態切替と設定のため起動しますが、OFF時はAIモデルをロードしません
+- AIは初期ON。トレイとAIモデルはサインイン時に起動し、不要な場合はトレイからOFFにできます
 - 医学・法律・技術などの文書分野を指定し、その指示をrerankerへ渡せる
 - AIが失敗・停止してもMozcの候補を使うフェイルセーフ設計
 
@@ -25,18 +57,22 @@ Fumiori AI IMEは、Mozcの変換候補をローカルAI rerankerで並べ替え
 - Windows 10 22H2（build 19045）またはWindows 11、x64
 - 8GB RAM以上（16GB推奨）
 - 空き容量 約3GB
-- CPU実行対応（INT8モデル: 67.8MB、DirectML GPU対応: FP16 134MB）。対応GPUがあるPCでは自動的にDirectML GPU推論を優先
+- CPU実行対応（INT8モデル: 67.8MB、CUDA / DirectML GPU対応: FP16 134MB）。対応GPUがあるPCでは自動的にCUDA、次にDirectMLのGPU推論を優先
 - インストールには管理者権限が必要
 
 詳細は [システム要件](docs/SYSTEM_REQUIREMENTS_JA.md) および [モデル軽量化・GPU推論技術解説](docs/DISTILLATION_QUANTIZATION_AND_GPU_INFERENCE_JA.md) を参照してください。
 
+## 推論エンジン
+
+v2.1.0-beta 以降の標準構成は Dual-Encoder 70M です。文脈を一度ベクトル化して候補ベクトルを比較するため、候補の追加や複数文節の変換でも推論量が増えにくく、入力中の先読みを使えます。Dual-Encoder のモデルが見つからない既存環境では、旧 Cross-Encoder LoRA アンサンブルへ自動的にフォールバックします。
+
 ## インストール
 
-1. [v2.0.10-betaのReleaseページ](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.0.10-beta)から最新の `.msi` と `SHA256SUMS.txt` をダウンロードします。
-2. PowerShellで `Get-FileHash .\<ダウンロードしたMSIファイル名> -Algorithm SHA256` を実行し、公開ハッシュと一致することを確認します。既存インストールとの互換性のため、配布ファイル名だけは旧内部名を維持しています。
-3. MSIをダブルクリックし、プライバシー説明を確認してインストールします。
-4. サインアウトまたは再起動後、`Win + Space` で **Fumiori AI IME** を選択します。
-5. 通知領域のFumioriアイコンを開き、必要なときだけ **AIをON** にします。初期状態はOFFです。アイコンが隠れている場合は、タスクバーの `^` を開いてください。
+1. [v2.1.1-betaのReleaseページ](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)から配布ファイルをダウンロードします。既存インストールを更新する場合は `Yamatana-AI-IME-v2.1.1-beta-candidate15.zip` の `scripts\apply_hotfix.ps1` を管理者 PowerShell で実行してください。新しい版が公開された場合は [Releases一覧](https://github.com/YAMA-TANA/fumiori-ai-ime/releases) を確認してください。
+2. PowerShellで `Get-FileHash .\Yamatana-AI-IME-MOZC-Ver-<version>-x64.msi -Algorithm SHA256` を実行し、公開ハッシュと一致することを確認します。配布ファイル名は既存インストールとの互換性のため、旧内部名を維持しています。
+3. `Install-Yamatana-AI-IME.cmd` をダブルクリックしてインストールします。画面にMSI終了コードが表示され、`3010` または `1641` の場合は「インストール成功・PCの再起動が必要」と表示されます。MSIを直接実行する場合は、完了後のログまたは終了コードを確認してください。
+4. サインアウトまたは再起動後、トレイとAIモデルが起動します。`Win + Space` で **Fumiori AI IME** を選択します。
+5. 通知領域のFumioriアイコンからAIをOFFにできます。アイコンが隠れている場合は、タスクバーの `^` を開いてください。
 
 本ソフトはMSIXではありません。既存のMozc TSF登録順序を維持したMSIで配布します。
 
@@ -54,7 +90,7 @@ Windowsの **設定 → アプリ → インストールされているアプリ
 
 ## 開発と再現可能性
 
-大容量ONNXモデルはGit履歴に含めません。[model-manifest.json](model-manifest.json) に固定したリリース資産を [fetch-model.ps1](scripts/fetch-model.ps1) が取得し、SHA-256一致時のみ展開します。Mozcは [build-config.json](build-config.json) で公開forkと固定commitを指定します。Windowsワークフローはテスト、Mozc/AIランタイムのビルド、MSI生成、ハッシュ生成を自動化します。
+大容量ONNXモデルはGit履歴に含めません。[model-manifest.json](model-manifest.json) に固定したDual-Encoder標準モデルと互換フォールバックモデルのリリース資産を [fetch-model.ps1](scripts/fetch-model.ps1) が取得し、SHA-256一致時のみ展開します。Mozcは [build-config.json](build-config.json) で公開forkと固定commitを指定します。Windowsワークフローはテスト、Mozc/AIランタイムのビルド、MSI生成、ハッシュ生成を自動化します。
 
 開発参加方法は [CONTRIBUTING.md](CONTRIBUTING.md)、脆弱性報告は [SECURITY.md](SECURITY.md) を参照してください。
 

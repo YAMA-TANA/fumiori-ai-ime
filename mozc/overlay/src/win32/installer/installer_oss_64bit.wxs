@@ -58,8 +58,8 @@
     http://msdn.microsoft.com/en-us/library/aa367850.aspx.
     So we change the product ID for every new version.
   -->
-  <Package Name="Yamatana AI IME (MOZC Ver)" Language="1041" Codepage="932" Version="$(var.MozcVersion)" Manufacturer="Yamatana" UpgradeCode="$(var.UpgradeCode)" InstallerVersion="500">
-    <SummaryInformation Keywords="Installer" Description="Yamatana AI IME (MOZC Ver) インストーラー" Manufacturer="Yamatana" Codepage="932" />
+  <Package Name="Fumiori AI IME" Language="1041" Codepage="932" Version="$(var.MozcVersion)" Manufacturer="Yamatana" UpgradeCode="$(var.UpgradeCode)" InstallerVersion="500">
+    <SummaryInformation Keywords="Installer" Description="Fumiori AI IME インストーラー" Manufacturer="Yamatana" Codepage="932" />
 
     <!--
        While obtaining the OS build number from the registry does not seem to be officially
@@ -102,11 +102,17 @@
     <Property Id="OS_BUILD_NUMBER" Secure="yes">
       <RegistrySearch Id="CurrentBuildNumberValue" Type="raw" Root="HKLM" Key="SOFTWARE\Microsoft\Windows NT\CurrentVersion" Name="CurrentBuildNumber" />
     </Property>
-    <Launch Condition="(OS_BUILD_NUMBER AND (OS_BUILD_NUMBER &gt;= 19045)) OR (REMOVE=&quot;ALL&quot;)" Message="Yamatana AI IME をインストールするには Windows 10 22H2 または Windows 11 が必要です。" />
+    <Launch Condition="(OS_BUILD_NUMBER AND (OS_BUILD_NUMBER &gt;= 19045)) OR (REMOVE=&quot;ALL&quot;)" Message="Fumiori AI IME をインストールするには Windows 10 22H2 または Windows 11 が必要です。" />
 
     <!-- Check if the user have the administrative privileges. -->
-    <Launch Condition="Privileged" Message="Yamatana AI IME をインストールするには管理者権限が必要です。" />
-    <Media Id="1" Cabinet="YamatanaAIIME.cab" EmbedCab="yes" CompressionLevel="medium" />
+    <Launch Condition="Privileged" Message="Fumiori AI IME をインストールするには管理者権限が必要です。" />
+    <!--
+      The bundled CUDA/cuDNN runtime can exceed the Windows Installer 2GB
+      single-CAB limit even though the compressed MSI remains practical. Let
+      WiX partition the payload into embedded cabinets while keeping one MSI.
+    -->
+    <MediaTemplate CabinetTemplate="Fum{0}.cab" EmbedCab="yes"
+                   CompressionLevel="high" MaximumUncompressedMediaSize="1024" />
 
     <?if $(var.MozcTIP64ArmPath) == "" and $(var.MozcTIP64XPath) == "" and $(var.MozcUniversalInstaller) == "" ?>
       <!--
@@ -135,10 +141,10 @@
     <WixVariable Id="WixUILicenseRtf" Value="$(var.PrivacyRtf)" />
     <UI>
       <ui:WixUI Id="WixUI_Minimal" />
-      <Error Id="4000" Message="新しいバージョンの Yamatana AI IME が既にインストールされています。" />
+      <Error Id="4000" Message="新しいバージョンの Fumiori AI IME が既にインストールされています。" />
     </UI>
 
-    <Feature Id="MozcInstall" Title="Yamatana AI IME (MOZC Ver)" Level="1">
+    <Feature Id="MozcInstall" Title="Fumiori AI IME" Level="1">
       <ComponentRef Id="MozcTIP32" />
       <ComponentRef Id="MozcTIP64" />
       <?if $(var.MozcTIP64ArmPath) != "" and $(var.MozcTIP64XPath) != "" ?>
@@ -190,8 +196,8 @@
     <CustomAction Id="SaveCustomActionData" DllEntry="SaveCustomActionData" BinaryRef="mozc_installer_helper.dll" />
     <CustomAction Id="RestoreServiceState" DllEntry="RestoreServiceState" Impersonate="no" Execute="deferred" Return="ignore" BinaryRef="mozc_installer_helper.dll" />
     <CustomAction Id="StopCacheServiceForRollback" DllEntry="StopCacheService" Impersonate="no" Execute="rollback" Return="ignore" BinaryRef="mozc_installer_helper.dll" />
-    <CustomAction Id="NewerVersionError" Error="4000" />
-    <CustomAction Id="LaunchYamatanaTray" FileRef="YamatanaAIIME.exe" ExeCommand="--from-installer" Execute="immediate" Impersonate="yes" Return="asyncNoWait" />
+      <CustomAction Id="NewerVersionError" Error="4000" />
+      <CustomAction Id="LaunchYamatanaTray" FileRef="YamatanaAIIME.exe" ExeCommand="--from-installer" Execute="immediate" Impersonate="yes" Return="asyncNoWait" />
 
     <InstallExecuteSequence>
       <Custom Action="InitialInstallation" After="InstallInitialize" Condition="(NOT (REMOVE=&quot;ALL&quot;)) AND (NOT UPGRADING)" />
@@ -235,8 +241,8 @@
       <Custom Action="EnsureAllApplicationPackagesPermisssions" Before="InitialInstallationCommit" Condition="(NOT (REMOVE=&quot;ALL&quot;))" />
       <Custom Action="InitialInstallationCommit" Before="FixupConfigFilePermission" Condition="(NOT (REMOVE=&quot;ALL&quot;)) AND (NOT UPGRADING)" />
       <Custom Action="FixupConfigFilePermission" Before="EnableTipProfile" Condition="NOT (REMOVE=&quot;ALL&quot;)" />
-      <Custom Action="EnableTipProfile" Before="InstallFinalize" Condition="(NOT (REMOVE=&quot;ALL&quot;)) AND (NOT UPGRADING)" />
-      <Custom Action="LaunchYamatanaTray" Before="InstallFinalize" Condition="(NOT Installed) AND (ACTION=&quot;INSTALL&quot;)" />
+        <Custom Action="EnableTipProfile" Before="InstallFinalize" Condition="(NOT (REMOVE=&quot;ALL&quot;)) AND (NOT UPGRADING)" />
+        <Custom Action="LaunchYamatanaTray" Before="InstallFinalize" Condition="(ACTION=&quot;INSTALL&quot;)" />
       <!-- show reboot dialog to execute pending file opartions -->
       <?if ($(var.VSConfigurationName) = "Release") ?>
         <ScheduleReboot After="InstallFinalize" Condition="(REMOVE=&quot;ALL&quot;)" />
@@ -386,8 +392,8 @@
       <RegistryValue Id="RunBroker" Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="Mozc Prelauncher" Action="write" Type="string" Value="&quot;[MozcDir]mozc_broker.exe&quot; --mode=prelaunch_processes" />
     </Component>
 
-    <!-- The tray is resident, but the AI model is OFF by default.  The model
-         is loaded only after the user explicitly enables AI from the tray. -->
+    <!-- The tray and AI model start at user logon by default.  The user can
+         turn the model off from the tray without disabling the IME. -->
     <Component Id="YamatanaTrayStartup" Directory="TARGETDIR">
       <RegistryValue Id="RunYamatanaAIIME" Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="Yamatana AI IME" Action="write" Type="string" Value="&quot;[YamatanaRuntimeDir]YamatanaAIIME.exe&quot;" KeyPath="yes" />
     </Component>

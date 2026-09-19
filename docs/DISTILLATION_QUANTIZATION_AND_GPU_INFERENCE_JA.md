@@ -1,6 +1,12 @@
 # Yamatana AI IME: モデル軽量化（知識蒸留・量子化）およびGPU推論 技術解説書
 
-本書は、Yamatana AI IMEにおける「モデル軽量化（知識蒸留・量子化）」、「特化文脈（異字同訓動詞・推論実装）の追加学習」、および「Windows DirectMLによるGPU推論」の技術仕様、実装詳細、評価検証結果をまとめた公式ドキュメントです。
+本書は、Fumiori AI IMEにおけるモデル軽量化と推論実装の技術仕様をまとめた公式ドキュメントです。v2.1.0-beta以降の標準ランタイムは、文脈と候補を別々にエンコードして内積比較するDual-Encoder 70Mです。後半のCross-Encoder蒸留の説明は、互換フォールバックモデルと学習上の比較対象として掲載しています。
+
+### 標準ランタイム（v2.1以降）
+
+- 文脈を1回エンコードし、候補ベクトルをキャッシュして内積で比較します。
+- 入力中に文脈と候補ベクトルを先読みするため、Spaceキーの明示変換では比較処理だけを実行します。
+- GPUはFP16、CPUはINT8を選び、Dual-Encoderモデルがない既存環境だけ旧Cross-Encoder LoRAアンサンブルへフォールバックします。
 
 ---
 
@@ -85,7 +91,7 @@ $$\mathcal{L}_{\text{total}} = \mathcal{L}_{\text{task}} + \alpha \cdot \mathcal
 
 ### 4.1 GPU用 Native FP16 ONNX (`ruri-ime-fp16.onnx`)
 - **サイズ**: **134.11 MB** (140,622,837 bytes)
-- **ターゲット**: Windows DirectML (`DmlExecutionProvider`)
+- **ターゲット**: Windows CUDA (`CUDAExecutionProvider`) / DirectML (`DmlExecutionProvider`)
 - **最適化**: 重み・計算グラフ全体をFP16でネイティブエクスポート。Direct3D 12対応GPUのTensorコア / シェーダーパイプラインで高スループット推論を実現。
 
 ### 4.2 CPU用 Dynamic INT8 ONNX (`ruri-ime-int8.onnx`)
@@ -102,20 +108,25 @@ IME起動時、設定ファイル（`product_settings.py`）の `compute_mode` �
 ```python
 available = set(ort.get_available_providers())
 requested = str(self.settings["compute_mode"]) # "auto", "gpu", "cpu"
-use_gpu = requested in {"auto", "gpu"} and "DmlExecutionProvider" in available
+gpu_provider = next(
+    (name for name in ("CUDAExecutionProvider", "DmlExecutionProvider")
+     if name in available),
+    None,
+)
+use_gpu = requested in {"auto", "gpu"} and gpu_provider is not None
 
 if use_gpu:
     # build/onnx-model-70m/ruri-ime-fp16.onnx (134MB) を優先ロード
-    providers = ["DmlExecutionProvider", "CPUExecutionProvider"]
-    self.device = "gpu-directml"
+    providers = [gpu_provider, "CPUExecutionProvider"]
+    self.device = "gpu-cuda" if gpu_provider == "CUDAExecutionProvider" else "gpu-directml"
 else:
     # build/onnx-model-70m/ruri-ime-int8.onnx (67.8MB) を優先ロード
     providers = ["CPUExecutionProvider"]
     self.device = "cpu"
 ```
 
-### 5.2 DirectML ウォームアップ
-DirectMLは初回バッチ形状に対してシェーダーをJITコンパイルします。IMEの初回変換遅延（ヒッチ）を防止するため、初期化時にMozc標準の8候補バッチ形状でウォームアップ推論を実行します。
+### 5.2 GPU ウォームアップ
+CUDA / DirectMLは初回バッチ形状に対してカーネルまたはシェーダーを準備します。IMEの初回変換遅延（ヒッチ）を防止するため、初期化時にMozc標準の8候補バッチ形状でウォームアップ推論を実行します。
 
 ---
 

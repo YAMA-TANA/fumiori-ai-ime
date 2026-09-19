@@ -17,6 +17,13 @@ if ($LASTEXITCODE -ne 0) { throw 'Mozc fetch failed' }
 & git -C $Checkout checkout --detach $Config.mozc.commit
 if ($LASTEXITCODE -ne 0) { throw 'Mozc checkout failed' }
 
+# The checkout is a disposable build workspace. Reset tracked files before
+# copying the current overlay; otherwise repeated local builds can accumulate
+# duplicate C++ helpers and make patch matching ambiguous. Keep downloaded
+# dependencies and Bazel outputs so subsequent local release builds stay fast.
+& git -C $Checkout reset --hard $Config.mozc.commit
+if ($LASTEXITCODE -ne 0) { throw 'Mozc checkout reset failed' }
+
 $ActualCommit = (& git -C $Checkout rev-parse HEAD).Trim()
 if ($ActualCommit -ne $Config.mozc.commit) { throw "Mozc commit mismatch: $ActualCommit" }
 
@@ -30,6 +37,12 @@ Get-ChildItem -LiteralPath $Overlay -File -Recurse | ForEach-Object {
 
 python (Join-Path $RepoRoot 'scripts\patch_mozc_surrounding_context.py') --checkout $Checkout
 if ($LASTEXITCODE -ne 0) { throw 'Mozc surrounding context patch failed' }
+
+python (Join-Path $RepoRoot 'scripts\patch_mozc_ai_prefetch.py') --checkout $Checkout
+if ($LASTEXITCODE -ne 0) { throw 'Mozc AI prefetch patch failed' }
+
+python (Join-Path $RepoRoot 'scripts\patch_mozc_installer_tray.py') --checkout $Checkout
+if ($LASTEXITCODE -ne 0) { throw 'Mozc installer tray patch failed' }
 
 python (Join-Path $RepoRoot 'scripts\modernize_mozc_ui.py') --checkout $Checkout
 if ($LASTEXITCODE -ne 0) { throw 'Mozc modern UI patch failed' }

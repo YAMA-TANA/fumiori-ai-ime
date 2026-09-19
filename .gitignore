@@ -30,6 +30,7 @@ integration/*.json
 data/massive_homophone_database.json
 data/homonym_ksasao/homonym.txt
 data/homonym_ksasao/homonym2.txt
+data/homophone_sources/
 
 # Local settings, secrets and tools
 .env
@@ -46,3 +47,11 @@ data/homonym_ksasao/homonym2.txt
 .idea/
 Thumbs.db
 Desktop.ini
+
+# PR video scratch and frames
+pr-video/frames/
+pr-video/inspect/
+pr-video/output/
+pr-video/tail/
+pr-video/*.png
+

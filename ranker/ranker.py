@@ -12,8 +12,11 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+from collections import OrderedDict
+from copy import deepcopy
 import json
 import logging
+import math
 import os
 import sys
 import time
@@ -27,15 +30,27 @@ except ImportError:
     from lexicon import contextual_candidate_bonus
 
 try:  # When run as ``python -m ranker.ranker``.
-    from .protocol import (MAX_LINE_BYTES, ProtocolError, loads_strict,
-                           validate_request, validate_response)
+    from .protocol import (
+        MAX_LINE_BYTES,
+        ProtocolError,
+        loads_strict,
+        validate_batch_request,
+        validate_batch_response,
+        validate_request,
+        validate_response,
+    )
     from .loading_ui import LoadingIndicator
-    from .speculative import SpeculativeRanker
 except ImportError:  # When run as ``python ranker/ranker.py``.
-    from protocol import (MAX_LINE_BYTES, ProtocolError, loads_strict,
-                          validate_request, validate_response)
+    from protocol import (
+        MAX_LINE_BYTES,
+        ProtocolError,
+        loads_strict,
+        validate_batch_request,
+        validate_batch_response,
+        validate_request,
+        validate_response,
+    )
     from loading_ui import LoadingIndicator
-    from speculative import SpeculativeRanker
 
 QwenReranker = None
 QwenDependencyError = RuntimeError
@@ -135,6 +150,7 @@ class RuntimeStatus:
             "last_context_chars": None,
             "last_read_chars": None,
             "last_candidate_count": None,
+            "last_segment_count": None,
             "last_request_at": None,
             "last_latency_ms": None,
         }
@@ -277,19 +293,190 @@ class InteractiveBurstGuard:
         return response
 
 
+def _compact_batch_fallback(
+    request: Dict[str, Any], ranker: Any
+) -> Dict[str, Any]:
+    """Adapt a legacy backend to the compact batch response."""
+    results = []
+    for segment in request["segments"]:
+        single_request = {
+            "request_id": f"{request['request_id']}-{segment['id']}",
+            "inference_trigger": request["inference_trigger"],
+            "preceding_text": segment["preceding_text"],
+            "following_text": segment["following_text"],
+            "read": segment["read"],
+            "candidates": segment["candidates"],
+        }
+        response = validate_response(ranker.rank(single_request), single_request)
+        ranked = response["candidates"]
+        winner = ranked[0]
+        values = [float(item["score"]) for item in ranked]
+        maximum = max(values)
+        denominator = sum(math.exp(value - maximum) for value in values)
+        confidence = math.exp(float(winner["score"]) - maximum) / denominator
+        results.append({
+            "id": segment["id"],
+            "winner_id": winner["id"],
+            "confidence": confidence,
+        })
+    return {"request_id": request["request_id"], "segments": results}
+
+
+class ResponseCache:
+    """Short-lived cache for repeated explicit conversion requests."""
+
+    def __init__(
+        self,
+        delegate: Any,
+        *,
+        max_entries: int = 256,
+        ttl_seconds: float = 3.0,
+    ) -> None:
+        self._delegate = delegate
+        self.max_entries = max(1, int(max_entries))
+        self.ttl_seconds = max(0.0, float(ttl_seconds))
+        self._entries: OrderedDict[str, tuple[float, Dict[str, Any]]] = OrderedDict()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._delegate, name)
+
+    @staticmethod
+    def _key(request: Dict[str, Any]) -> str:
+        value = dict(request)
+        value.pop("request_id", None)
+        return json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+        )
+
+    def _get_or_compute(self, request: Dict[str, Any], compute: Any) -> Dict[str, Any]:
+        key = self._key(request)
+        now = time.perf_counter()
+        entry = self._entries.get(key)
+        if entry is not None:
+            stored_at, response = entry
+            if now - stored_at <= self.ttl_seconds:
+                self._entries.move_to_end(key)
+                cached = deepcopy(response)
+                cached["request_id"] = request["request_id"]
+                return cached
+            self._entries.pop(key, None)
+
+        response = compute(request)
+        if getattr(response, "cacheable", True) is False:
+            return response
+        if response is not None:
+            self._entries[key] = (time.perf_counter(), deepcopy(response))
+            self._entries.move_to_end(key)
+            while len(self._entries) > self.max_entries:
+                self._entries.popitem(last=False)
+        return response
+
+    def rank(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        normalized = validate_request(request)
+        return self._get_or_compute(normalized, self._delegate.rank)
+
+    def rank_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
+        normalized = validate_batch_request(request)
+        if hasattr(self._delegate, "rank_batch"):
+            compute = self._delegate.rank_batch
+        else:
+            compute = lambda value: _compact_batch_fallback(value, self._delegate)
+        return self._get_or_compute(normalized, compute)
+
+
+def summarize_batch_reorder(
+    request: Dict[str, Any], response: Dict[str, Any]
+) -> tuple[int, int]:
+    """Return changed-segment and non-baseline-winner counts."""
+    winners = {item["id"]: item["winner_id"] for item in response["segments"]}
+    changed = 0
+    promoted = 0
+    for segment in request["segments"]:
+        winner_id = winners[segment["id"]]
+        original_top = segment["candidates"][0]["id"]
+        if winner_id != original_top:
+            changed += 1
+            promoted += 1
+    return changed, promoted
+
+
 def process_line(line: bytes, ranker: Any) -> Optional[bytes]:
     try:
         if len(line) > MAX_LINE_BYTES:
             raise ProtocolError("JSON line is too large")
         request = loads_strict(line.decode("utf-8"))
+        if isinstance(request, dict) and "segments" in request:
+            req_val = validate_batch_request(request)
+            trigger = req_val["inference_trigger"]
+            if trigger in {"prefetch", "context_prefetch", "candidate_prefetch"}:
+                queued = False
+                if trigger == "context_prefetch" and hasattr(
+                    ranker, "prefetch_context_batch_async"
+                ):
+                    ranker.prefetch_context_batch_async(req_val)
+                    queued = True
+                elif trigger == "candidate_prefetch" and hasattr(
+                    ranker, "prefetch_candidate_batch_async"
+                ):
+                    ranker.prefetch_candidate_batch_async(req_val)
+                    queued = True
+                elif hasattr(ranker, "prefetch_batch_async"):
+                    # Compatibility path for older clients that sent one
+                    # combined prefetch request.
+                    ranker.prefetch_batch_async(req_val)
+                    queued = True
+                if queued:
+                    response = {
+                        "request_id": req_val["request_id"],
+                        "segments": [
+                            {
+                                "id": segment["id"],
+                                "winner_id": segment["candidates"][0]["id"],
+                                "confidence": 0.0,
+                            }
+                            for segment in req_val["segments"]
+                        ],
+                    }
+                elif trigger == "context_prefetch" and hasattr(
+                    ranker, "prefetch_context_batch"
+                ):
+                    response = ranker.prefetch_context_batch(req_val)
+                elif trigger == "candidate_prefetch" and hasattr(
+                    ranker, "prefetch_candidate_batch"
+                ):
+                    response = ranker.prefetch_candidate_batch(req_val)
+                elif hasattr(ranker, "prefetch_batch"):
+                    response = ranker.prefetch_batch(req_val)
+                else:
+                    response = {
+                        "request_id": req_val["request_id"],
+                        "segments": [
+                            {
+                                "id": segment["id"],
+                                "winner_id": segment["candidates"][0]["id"],
+                                "confidence": 0.0,
+                            }
+                            for segment in req_val["segments"]
+                        ],
+                    }
+            elif hasattr(ranker, "rank_batch"):
+                response = ranker.rank_batch(req_val)
+            else:
+                response = _compact_batch_fallback(req_val, ranker)
+            clean_response = validate_batch_response(response, req_val)
+            return (
+                json.dumps(clean_response, ensure_ascii=False, separators=(",", ":"))
+                + "\n"
+            ).encode("utf-8")
         req_val = validate_request(request)
         if (not req_val["preceding_text"] and
                 not req_val["following_text"] and
-                req_val["inference_trigger"] == "interactive"):
+                req_val["inference_trigger"] != "explicit"):
             # A legacy context-free interactive request has no information
-            # with which to improve Mozc's dictionary order.  Explicit and
-            # prefetch requests are already gated by the Mozc rewriter, where
-            # internal phrase context can still make a context-free pass useful.
+            # with which to improve Mozc's dictionary order.  Explicit Mozc
+            # conversion is allowed through because a resized compound can
+            # still be judged by whole-word naturalness, and a restored split
+            # supplies neighboring segments as prefix/suffix context.
             response = {
                 "request_id": req_val["request_id"],
                 "candidates": [
@@ -419,14 +606,9 @@ def _windows_pipe_server(pipe_name: str, ranker: Any, show_ui: bool = True,
                         request_id = str(observed.get("request_id", ""))
                     except Exception:
                         pass
-                    started = time.perf_counter()
-                    if observed.get("inference_trigger") == "prefetch":
-                        # Typing-time speculative inference is intentionally
-                        # invisible; only explicit conversion may show the UI.
+                    with indicator.active():
+                        started = time.perf_counter()
                         output = process_line(bytes(data[: newline + 1]), ranker)
-                    else:
-                        with indicator.active():
-                            output = process_line(bytes(data[: newline + 1]), ranker)
                     if output is not None:
                         written = ctypes.c_uint32()
                         k32.WriteFile(handle, output, len(output), ctypes.byref(written), None)
@@ -435,7 +617,10 @@ def _windows_pipe_server(pipe_name: str, ranker: Any, show_ui: bool = True,
                                  (time.perf_counter() - started) * 1000.0)
                         if runtime_status is not None:
                             latency_ms = (time.perf_counter() - started) * 1000.0
-                            is_ime = request_id.startswith("mozc-")
+                            is_ime = (
+                                request_id.startswith("mozc-")
+                                and observed.get("inference_trigger") == "explicit"
+                            )
                             updates: Dict[str, Any] = dict(
                                 requests=int(runtime_status.data["requests"]) + 1,
                                 ime_requests=(
@@ -445,31 +630,71 @@ def _windows_pipe_server(pipe_name: str, ranker: Any, show_ui: bool = True,
                                 ),
                                 last_request_at=time.time(),
                                 last_latency_ms=round(latency_ms, 3),
-                                last_source="mozc" if is_ime else "probe",
+                                last_source=(
+                                    "mozc" if is_ime else
+                                    "prefetch" if request_id.startswith("mozc-")
+                                    else "probe"
+                                ),
                             )
                             if is_ime:
                                 response = loads_strict(output.decode("utf-8"))
-                                changed, promoted_from = summarize_reorder(observed, response)
-                                updates.update(
-                                    ime_reordered_requests=(
-                                        int(runtime_status.data["ime_reordered_requests"])
-                                        + (1 if changed else 0)
-                                    ),
-                                    ime_top_changed_requests=(
-                                        int(runtime_status.data["ime_top_changed_requests"])
-                                        + (1 if promoted_from > 1 else 0)
-                                    ),
-                                    last_ime_order_changed=changed,
-                                    last_promoted_from_rank=promoted_from,
-                                    last_context_chars=len(str(observed.get("preceding_text", ""))),
-                                    last_read_chars=len(str(observed.get("read", ""))),
-                                    last_candidate_count=len(observed.get("candidates", [])),
-                                )
-                                LOG.info(
-                                    "IME reorder changed=%s top_from=%s context_chars=%s read_chars=%s",
-                                    changed, promoted_from,
-                                    updates["last_context_chars"], updates["last_read_chars"],
-                                )
+                                if isinstance(observed.get("segments"), list):
+                                    changed_count, promoted_count = summarize_batch_reorder(
+                                        observed, response
+                                    )
+                                    updates.update(
+                                        ime_reordered_requests=(
+                                            int(runtime_status.data["ime_reordered_requests"])
+                                            + (1 if changed_count else 0)
+                                        ),
+                                        ime_top_changed_requests=(
+                                            int(runtime_status.data["ime_top_changed_requests"])
+                                            + promoted_count
+                                        ),
+                                        last_ime_order_changed=bool(changed_count),
+                                        last_promoted_from_rank=None,
+                                        last_context_chars=sum(
+                                            len(str(item.get("preceding_text", "")))
+                                            for item in observed["segments"]
+                                        ),
+                                        last_read_chars=sum(
+                                            len(str(item.get("read", "")))
+                                            for item in observed["segments"]
+                                        ),
+                                        last_candidate_count=sum(
+                                            len(item.get("candidates", []))
+                                            for item in observed["segments"]
+                                        ),
+                                        last_segment_count=len(observed["segments"]),
+                                    )
+                                    LOG.info(
+                                        "IME batch reorder changed_segments=%s promoted_segments=%s segments=%s",
+                                        changed_count, promoted_count,
+                                        len(observed["segments"]),
+                                    )
+                                else:
+                                    changed, promoted_from = summarize_reorder(observed, response)
+                                    updates.update(
+                                        ime_reordered_requests=(
+                                            int(runtime_status.data["ime_reordered_requests"])
+                                            + (1 if changed else 0)
+                                        ),
+                                        ime_top_changed_requests=(
+                                            int(runtime_status.data["ime_top_changed_requests"])
+                                            + (1 if promoted_from > 1 else 0)
+                                        ),
+                                        last_ime_order_changed=changed,
+                                        last_promoted_from_rank=promoted_from,
+                                        last_context_chars=len(str(observed.get("preceding_text", ""))),
+                                        last_read_chars=len(str(observed.get("read", ""))),
+                                        last_candidate_count=len(observed.get("candidates", [])),
+                                        last_segment_count=1,
+                                    )
+                                    LOG.info(
+                                        "IME reorder changed=%s top_from=%s context_chars=%s read_chars=%s",
+                                        changed, promoted_from,
+                                        updates["last_context_chars"], updates["last_read_chars"],
+                                    )
                             runtime_status.write(**updates)
             finally:
                 k32.DisconnectNamedPipe(handle)
@@ -488,12 +713,23 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     mode.add_argument("--once", action="store_true", help="process one stdio request and exit")
     mode.add_argument("--pipe", metavar="NAME", help="Windows Named Pipe name")
     parser.add_argument(
-        "--backend", choices=("rule", "qwen", "ruri", "onnx"), default="onnx",
-        help="candidate scoring backend (default: self-contained ONNX Ruri)",
+        "--backend", choices=("rule", "qwen", "ruri", "onnx", "dual_encoder"), default="dual_encoder",
+        help="candidate scoring backend (default: self-contained Dual-Encoder 70M ONNX)",
     )
     parser.add_argument(
         "--model-name", default="cl-nagoya/ruri-v3-reranker-310m",
         help="Hugging Face model ID/path for --backend ruri or qwen",
+    )
+    parser.add_argument(
+        "--ensemble-model", action="append", default=None,
+        help=(
+            "ONNX model path; repeat for a weighted ensemble "
+            "(two paths use the calibrated LoRA3/LoRA6 25/75 default)"
+        ),
+    )
+    parser.add_argument(
+        "--query-variant", choices=("current", "short", "none"), default="current",
+        help="ONNX query template used for ranking (default: current)",
     )
     parser.add_argument(
         "--device", default=None,
@@ -553,6 +789,25 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
                     "Qwen warmup completed in %.1f ms; pipe is ready",
                     (time.perf_counter() - warmup_started) * 1000.0,
                 )
+        elif args.backend == "dual_encoder":
+            try:
+                from .onnx_dual_encoder_ranker import OnnxDualEncoderIMEReranker
+            except ImportError:
+                from ranker.onnx_dual_encoder_ranker import OnnxDualEncoderIMEReranker
+            load_started = time.perf_counter()
+            product_settings = load_settings(args.settings_file)
+            selected_model = args.ensemble_model[0] if args.ensemble_model else None
+            ranker = OnnxDualEncoderIMEReranker(
+                settings=product_settings,
+                model_path=selected_model,
+                candidate_warmup_limit=100_000 if args.pipe else 0,
+            )
+            LOG.info(
+                "Dual-Encoder 70M ONNX model loaded in %.1f ms (device=%s, model=%s)",
+                (time.perf_counter() - load_started) * 1000.0,
+                ranker.device,
+                ranker.model_path,
+            )
         elif args.backend == "onnx":
             try:
                 from .onnx_ranker import OnnxRuriReranker
@@ -562,6 +817,8 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             product_settings = load_settings(args.settings_file)
             ranker = OnnxRuriReranker(
                 settings=product_settings,
+                model_paths=args.ensemble_model,
+                query_variant=args.query_variant,
             )
             LOG.info(
                 "ONNX Ruri model loaded in %.1f ms (device=%s)",
@@ -596,16 +853,23 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         LOG.error("could not start %s backend: %s", args.backend, exc)
         return 2
     if args.pipe:
-        if args.backend in {"ruri", "onnx"}:
-            # Typing-time requests only enqueue the latest speculative pass and
-            # return Mozc order immediately.  Space/Convert either reuses that
-            # cached result or performs the normal synchronous fallback.
-            ranker = SpeculativeRanker(ranker, settle_seconds=0.04)
-        model = getattr(ranker, "model_path", args.model_name if args.backend != "rule" else "rule")
+        if args.backend in {"ruri", "onnx", "dual_encoder"}:
+            # A current Mozc process marks Space/Convert as explicit. Requests
+            # from older binaries have no marker and are treated as live input:
+            # return Mozc order immediately until the same request is stable
+            # for 500 ms, so typing never starts model inference.
+            ranker = InteractiveBurstGuard(ranker, settle_seconds=0.5)
+        ranker = ResponseCache(ranker)
+        model_paths = getattr(ranker, "model_paths", None)
+        model = (
+            ",".join(str(path) for path in model_paths)
+            if model_paths
+            else getattr(ranker, "model_path", args.model_name if args.backend != "rule" else "rule")
+        )
         status = RuntimeStatus(
             args.status_file, args.backend, str(model), normalize_windows_pipe_name(args.pipe)
         )
-        if args.backend in {"ruri", "onnx"}:
+        if args.backend in {"ruri", "onnx", "dual_encoder"}:
             status.write(
                 compute_device=str(getattr(ranker, "device", "unknown")),
                 document_domain=str(getattr(ranker, "document_domain", "general")),

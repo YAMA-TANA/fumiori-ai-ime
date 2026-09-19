@@ -658,7 +658,7 @@ def verify_strictly_unseen(holdout_data: List[Dict[str, Any]]) -> None:
     print("[VERIFICATION PASSED] Dataset is 100% strictly held-out and completely unseen!")
 
 
-def run_single_benchmark(mode: str = "gpu") -> Dict[str, Any]:
+def run_single_benchmark(mode: str = "gpu", student_onnx_dir: Path | None = None) -> Dict[str, Any]:
     from ranker.onnx_ranker import OnnxRuriReranker
 
     is_gpu = (mode == "gpu")
@@ -669,11 +669,11 @@ def run_single_benchmark(mode: str = "gpu") -> Dict[str, Any]:
 
     if is_gpu:
         model_310m = ROOT / "build" / "onnx-model" / "ruri-ime-fp16.onnx"
-        model_70m = ROOT / "build" / "onnx-model-70m" / "ruri-ime-fp16.onnx"
+        model_70m = (student_onnx_dir or (ROOT / "build" / "onnx-model-70m")) / "ruri-ime-fp16.onnx"
         compute_mode_val = "gpu"
     else:
         model_310m = ROOT / "build" / "onnx-model" / "ruri-ime-int8.onnx"
-        model_70m = ROOT / "build" / "onnx-model-70m" / "ruri-ime-int8.onnx"
+        model_70m = (student_onnx_dir or (ROOT / "build" / "onnx-model-70m")) / "ruri-ime-int8.onnx"
         compute_mode_val = "cpu"
 
     print(f"Loading Teacher ({mode_label}): {model_310m}...")
@@ -812,7 +812,7 @@ def run_single_benchmark(mode: str = "gpu") -> Dict[str, Any]:
     }
 
 
-def run_evaluation(compute_mode: str = "both") -> None:
+def run_evaluation(compute_mode: str = "both", student_onnx_dir: Path | None = None, output_file: Path | None = None) -> None:
     print("=" * 75)
     print(f"RUNNING STRICT 120-QUESTION HOLDOUT BENCHMARK")
     print(f"Conditions: Mozc Simple Conversion must be <= 30%")
@@ -823,11 +823,11 @@ def run_evaluation(compute_mode: str = "both") -> None:
 
     all_summaries: Dict[str, Any] = {}
     if compute_mode in {"gpu", "both"}:
-        all_summaries["gpu"] = run_single_benchmark("gpu")
+        all_summaries["gpu"] = run_single_benchmark("gpu", student_onnx_dir)
     if compute_mode in {"cpu", "both"}:
-        all_summaries["cpu"] = run_single_benchmark("cpu")
+        all_summaries["cpu"] = run_single_benchmark("cpu", student_onnx_dir)
 
-    out_file = ROOT / "build" / "holdout_120_evaluation.json"
+    out_file = output_file or (ROOT / "build" / "holdout_120_evaluation.json")
     out_file.write_text(json.dumps(all_summaries, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\nSaved detailed evaluation JSON to: {out_file}")
 
@@ -835,5 +835,7 @@ def run_evaluation(compute_mode: str = "both") -> None:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="120-Question Hold-Out Benchmark")
     parser.add_argument("--compute-mode", choices=["cpu", "gpu", "both"], default="both", help="Execution mode (default: both)")
+    parser.add_argument("--student-onnx-dir", type=Path, default=None, help="Optional alternate 70M ONNX directory")
+    parser.add_argument("--output", type=Path, default=None, help="Optional evaluation JSON path")
     args = parser.parse_args()
-    run_evaluation(compute_mode=args.compute_mode)
+    run_evaluation(compute_mode=args.compute_mode, student_onnx_dir=args.student_onnx_dir, output_file=args.output)

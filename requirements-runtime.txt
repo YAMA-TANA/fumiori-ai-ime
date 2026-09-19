@@ -1,5 +1,9 @@
 numpy==2.2.6
-onnxruntime-directml==1.23.0
+onnxruntime-gpu==1.23.0
+nvidia-cuda-runtime-cu12==12.9.79
+nvidia-cuda-nvrtc-cu12==12.9.86
+nvidia-cublas-cu12==12.9.2.10
+nvidia-cudnn-cu12==9.25.1.1
 pillow==12.1.1
 psutil==7.2.2
 pyreadline3==3.5.6

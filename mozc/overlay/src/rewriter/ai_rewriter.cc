@@ -28,19 +28,12 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
-constexpr size_t kBoundaryDictionaryLimit = 6;
-constexpr size_t kBoundaryRepairLimit = 12;
-constexpr size_t kAiCandidateSurfaceLimit = 4;
-constexpr size_t kSupplementalCandidateSurfaceLimit = 2;
+constexpr size_t kMaxAiCandidateSurfaceLimit = 15;
+constexpr size_t kNormalCandidateSurfaceLimit = 14;
+constexpr size_t kSupplementalCandidateSurfaceLimit = 1;
 constexpr size_t kMinInternalPhraseContextChars = 4;
-constexpr int kBoundaryProbeTimeoutMs = 700;
-constexpr int kPrefetchAckTimeoutMs = 5;
-constexpr double kBoundaryRepairMargin = 0.60;
-
-struct SurfaceOption {
-  std::string value;
-  int64_t cost = 0;
-};
+constexpr double kBatchHighConfidence = 0.65;
+constexpr double kRetryMinimumConfidence = 0.55;
 
 int RemainingBudgetMs(const Clock::time_point& deadline) {
   const auto now = Clock::now();
@@ -55,95 +48,12 @@ bool IsRerankableSegment(const converter::Segment& segment) {
          segment.segment_type() == converter::Segment::FIXED_BOUNDARY;
 }
 
-bool IsGrammarLikeKey(absl::string_view key) {
-  return key == "こと" || key == "もの" || key == "ため" ||
-         key == "よう" || key == "ので" || key == "のに" ||
-         key == "から" || key == "まで" || key == "だけ" ||
-         key == "ほど" || key == "する" || key == "した" ||
-         key == "して" || key == "です" || key == "ます" ||
-         key == "いる" || key == "ある" || key == "なる" ||
-         key == "ない" || key == "たい" || key == "れる" ||
-         key == "られる" || key == "せる" || key == "させる";
-}
-
-void AddSurfaceOption(std::vector<SurfaceOption>* options, std::string value,
-                      int64_t cost) {
-  if (options == nullptr || value.empty()) return;
-  auto existing = std::find_if(options->begin(), options->end(),
-                               [&](const SurfaceOption& option) {
-                                 return option.value == value;
-                               });
-  if (existing == options->end()) {
-    options->push_back({std::move(value), cost});
-  } else if (cost < existing->cost) {
-    existing->cost = cost;
-  }
-}
-
-std::vector<SurfaceOption> LookupExactSurfaces(
-    const dictionary::DictionaryInterface* dictionary, absl::string_view key,
-    size_t limit = kBoundaryDictionaryLimit) {
-  std::vector<SurfaceOption> options;
-  if (dictionary == nullptr || key.empty()) return options;
-
-  dictionary::InlineCallback callback;
-  callback.OnToken(
-      [&](absl::string_view, absl::string_view,
-          const dictionary::Token& token) {
-        AddSurfaceOption(&options, token.value, token.cost);
-        return dictionary::DictionaryInterface::Callback::TRAVERSE_CONTINUE;
-      });
-  dictionary->LookupExact(key, &callback);
-
-  std::sort(options.begin(), options.end(),
-            [](const SurfaceOption& lhs, const SurfaceOption& rhs) {
-              if (lhs.cost != rhs.cost) return lhs.cost < rhs.cost;
-              return lhs.value < rhs.value;
-            });
-  if (options.size() > limit) options.resize(limit);
-  return options;
-}
-
-bool ContainsSurface(const std::vector<SurfaceOption>& options,
-                     absl::string_view value) {
-  return std::any_of(options.begin(), options.end(),
-                     [&](const SurfaceOption& option) {
-                       return option.value == value;
-                     });
-}
-
 bool SegmentContainsSurface(const converter::Segment& segment,
                             absl::string_view value) {
   for (size_t i = 0; i < segment.candidates_size(); ++i) {
     if (segment.candidate(i).value == value) return true;
   }
   return false;
-}
-
-std::vector<SurfaceOption> BuildSplitSurfaces(
-    const dictionary::DictionaryInterface* dictionary,
-    absl::string_view left_key, absl::string_view right_key) {
-  const std::vector<SurfaceOption> left =
-      LookupExactSurfaces(dictionary, left_key);
-  const std::vector<SurfaceOption> right =
-      LookupExactSurfaces(dictionary, right_key);
-  std::vector<SurfaceOption> combined;
-  if (left.empty() || right.empty()) return combined;
-
-  for (const SurfaceOption& lhs : left) {
-    for (const SurfaceOption& rhs : right) {
-      AddSurfaceOption(&combined, lhs.value + rhs.value, lhs.cost + rhs.cost);
-    }
-  }
-  std::sort(combined.begin(), combined.end(),
-            [](const SurfaceOption& lhs, const SurfaceOption& rhs) {
-              if (lhs.cost != rhs.cost) return lhs.cost < rhs.cost;
-              return lhs.value < rhs.value;
-            });
-  if (combined.size() > kBoundaryRepairLimit) {
-    combined.resize(kBoundaryRepairLimit);
-  }
-  return combined;
 }
 
 // These are deliberately small, high-value supplements.  Mozc's dictionary
@@ -232,14 +142,6 @@ std::string SegmentTopSurface(const converter::Segment& segment) {
   return std::string(segment.key());
 }
 
-std::string CurrentSurface(const Segments& segments) {
-  std::string surface;
-  for (const converter::Segment& segment : segments.conversion_segments()) {
-    surface.append(SegmentTopSurface(segment));
-  }
-  return surface;
-}
-
 std::string FullReading(const Segments& segments) {
   std::string reading;
   for (const converter::Segment& segment : segments.conversion_segments()) {
@@ -267,59 +169,6 @@ std::string ContextAfterSegment(const Segments& segments, size_t index,
   return context;
 }
 
-std::vector<std::string> RepairValues(
-    const std::vector<SurfaceOption>& options, absl::string_view baseline,
-    const std::vector<SurfaceOption>* blocked = nullptr) {
-  std::vector<std::string> values;
-  for (const SurfaceOption& option : options) {
-    if (option.value == baseline) continue;
-    if (blocked != nullptr && ContainsSurface(*blocked, option.value)) continue;
-    if (std::find(values.begin(), values.end(), option.value) != values.end()) {
-      continue;
-    }
-    values.push_back(option.value);
-    if (values.size() >= kBoundaryRepairLimit) break;
-  }
-  return values;
-}
-
-bool BoundaryRepairWins(const ai_ranker::Client& client,
-                        const ConversionRequest& request,
-                        const Segments& segments, const std::string& reading,
-                        const std::string& baseline,
-                        const std::vector<std::string>& repairs) {
-  if (baseline.empty() || repairs.empty()) return false;
-
-  std::vector<ai_ranker::CandidateInput> candidates;
-  candidates.reserve(repairs.size() + 1);
-  candidates.push_back({"baseline", baseline, 1});
-  for (size_t i = 0; i < repairs.size(); ++i) {
-    candidates.push_back({"repair" + std::to_string(i), repairs[i],
-                          static_cast<int>(i + 2)});
-  }
-
-  std::string preceding_text(request.context().preceding_text());
-  if (preceding_text.empty()) preceding_text = segments.history_value();
-  const std::string following_text(request.context().following_text());
-
-  std::vector<ai_ranker::RankedCandidate> ranked;
-  if (!client.Rank(preceding_text, following_text, reading, candidates,
-                   kBoundaryProbeTimeoutMs, &ranked) ||
-      ranked.size() != candidates.size() || ranked.empty()) {
-    return false;
-  }
-
-  const auto baseline_it =
-      std::find_if(ranked.begin(), ranked.end(), [](const auto& item) {
-        return item.id == "baseline";
-      });
-  if (baseline_it == ranked.end() ||
-      ranked.front().id.rfind("repair", 0) != 0) {
-    return false;
-  }
-  return ranked.front().score - baseline_it->score >= kBoundaryRepairMargin;
-}
-
 bool ParseCandidateId(absl::string_view id, size_t candidate_count,
                       size_t* index) {
   if (index == nullptr || id.size() < 2 || id[0] != 'c') return false;
@@ -339,9 +188,9 @@ std::vector<size_t> SelectDistinctCandidateSurfaces(
   std::vector<size_t> selected;
   std::vector<size_t> supplemental;
   std::vector<std::string> surfaces;
-  selected.reserve(kAiCandidateSurfaceLimit);
+  selected.reserve(kMaxAiCandidateSurfaceLimit);
   supplemental.reserve(kSupplementalCandidateSurfaceLimit);
-  surfaces.reserve(kAiCandidateSurfaceLimit);
+  surfaces.reserve(kMaxAiCandidateSurfaceLimit);
   for (size_t i = 0; i < segment.candidates_size(); ++i) {
     const std::string value(segment.candidate(i).value);
     if (std::find(surfaces.begin(), surfaces.end(), value) != surfaces.end()) {
@@ -352,13 +201,22 @@ std::vector<size_t> SelectDistinctCandidateSurfaces(
       supplemental.push_back(i);
       continue;
     }
-    if (selected.size() >= kAiCandidateSurfaceLimit) continue;
-    selected.push_back(i);
-    surfaces.push_back(value);
+    if (surfaces.size() < kNormalCandidateSurfaceLimit) {
+      selected.push_back(i);
+      surfaces.push_back(value);
+    }
+  }
+
+  // Reserve one slot for a high-value numeric/abbreviation supplement when
+  // one exists, but fill all fifteen slots with ordinary candidates otherwise.
+  if (!supplemental.empty() && selected.size() >= kMaxAiCandidateSurfaceLimit) {
+    selected.pop_back();
+    surfaces.pop_back();
   }
   for (const size_t index : supplemental) {
-    if (selected.size() >=
-        kAiCandidateSurfaceLimit + kSupplementalCandidateSurfaceLimit) {
+    if (selected.size() >= kMaxAiCandidateSurfaceLimit ||
+        selected.size() >= kNormalCandidateSurfaceLimit +
+                                kSupplementalCandidateSurfaceLimit) {
       break;
     }
     const std::string value(segment.candidate(index).value);
@@ -366,6 +224,20 @@ std::vector<size_t> SelectDistinctCandidateSurfaces(
       continue;
     }
     selected.push_back(index);
+    surfaces.push_back(value);
+  }
+
+  // If no supplement was present, or a duplicate supplement did not consume
+  // the reserved slot, use the remaining ordinary candidates up to five.
+  for (size_t i = 0; i < segment.candidates_size() &&
+                     selected.size() < kMaxAiCandidateSurfaceLimit; ++i) {
+    const std::string value(segment.candidate(i).value);
+    if (segment.candidate(i).attributes &
+            converter::Attribute::SUPPLEMENTAL_MODEL ||
+        std::find(surfaces.begin(), surfaces.end(), value) != surfaces.end()) {
+      continue;
+    }
+    selected.push_back(i);
     surfaces.push_back(value);
   }
   return selected;
@@ -391,6 +263,216 @@ size_t SharedCandidateContextChars(absl::string_view left,
   return prefix + suffix;
 }
 
+struct SharedCandidateAffixes {
+  std::string prefix;
+  std::string suffix;
+  size_t prefix_chars = 0;
+  size_t suffix_chars = 0;
+};
+
+std::string JoinUtf8Chars(const std::vector<std::string>& chars, size_t begin,
+                          size_t count) {
+  std::string result;
+  for (size_t i = begin; i < begin + count && i < chars.size(); ++i) {
+    result.append(chars[i]);
+  }
+  return result;
+}
+
+SharedCandidateAffixes SharedCandidateAffixesForSegment(
+    const converter::Segment& segment,
+    const std::vector<size_t>& selected_indices) {
+  SharedCandidateAffixes result;
+  if (selected_indices.size() < 2) return result;
+
+  std::vector<std::vector<std::string>> candidate_chars;
+  candidate_chars.reserve(selected_indices.size());
+  for (const size_t index : selected_indices) {
+    if (index >= segment.candidates_size()) return {};
+    candidate_chars.push_back(
+        Util::SplitStringToUtf8Chars(segment.candidate(index).value));
+  }
+
+  const size_t shortest = std::min_element(
+      candidate_chars.begin(), candidate_chars.end(),
+      [](const auto& left, const auto& right) {
+        return left.size() < right.size();
+      })->size();
+  size_t prefix_chars = shortest;
+  for (size_t position = 0; position < prefix_chars; ++position) {
+    for (size_t candidate = 1; candidate < candidate_chars.size();
+         ++candidate) {
+      if (candidate_chars[0][position] != candidate_chars[candidate][position]) {
+        prefix_chars = position;
+        break;
+      }
+    }
+    if (prefix_chars != shortest && prefix_chars == position) break;
+  }
+
+  size_t suffix_chars = shortest - prefix_chars;
+  for (size_t position = 0; position < suffix_chars; ++position) {
+    for (size_t candidate = 1; candidate < candidate_chars.size();
+         ++candidate) {
+      if (candidate_chars[0][candidate_chars[0].size() - 1 - position] !=
+          candidate_chars[candidate][candidate_chars[candidate].size() - 1 -
+                                    position]) {
+        suffix_chars = position;
+        break;
+      }
+    }
+    if (suffix_chars != shortest - prefix_chars && suffix_chars == position) {
+      break;
+    }
+  }
+
+  if (prefix_chars + suffix_chars < kMinInternalPhraseContextChars) {
+    return {};
+  }
+  result.prefix_chars = prefix_chars;
+  result.suffix_chars = suffix_chars;
+  result.prefix = JoinUtf8Chars(candidate_chars[0], 0, prefix_chars);
+  result.suffix = JoinUtf8Chars(candidate_chars[0],
+                                candidate_chars[0].size() - suffix_chars,
+                                suffix_chars);
+  return result;
+}
+
+std::string CandidateFocusText(absl::string_view value,
+                               const SharedCandidateAffixes& affixes) {
+  if (affixes.prefix_chars == 0 && affixes.suffix_chars == 0) {
+    return std::string(value);
+  }
+  const std::vector<std::string> chars = Util::SplitStringToUtf8Chars(value);
+  if (chars.size() <= affixes.prefix_chars + affixes.suffix_chars) {
+    return std::string(value);
+  }
+  return JoinUtf8Chars(chars, affixes.prefix_chars,
+                       chars.size() - affixes.prefix_chars - affixes.suffix_chars);
+}
+
+std::string AppendIfNotAlreadyAtEnd(std::string base,
+                                    absl::string_view suffix) {
+  if (suffix.empty() ||
+      (base.size() >= suffix.size() &&
+       base.compare(base.size() - suffix.size(), suffix.size(), suffix) == 0)) {
+    return base;
+  }
+  base.append(suffix.data(), suffix.size());
+  return base;
+}
+
+ai_ranker::BatchSegmentInput BuildBatchSegmentInput(
+    const Segments& segments, size_t index, absl::string_view document_prefix,
+    absl::string_view document_suffix) {
+  const converter::Segment& segment = segments.conversion_segment(index);
+  const std::vector<size_t> selected_indices =
+      SelectDistinctCandidateSurfaces(segment);
+  const SharedCandidateAffixes affixes =
+      SharedCandidateAffixesForSegment(segment, selected_indices);
+
+  std::string preceding = ContextBeforeSegment(segments, index, document_prefix);
+  preceding = AppendIfNotAlreadyAtEnd(std::move(preceding), affixes.prefix);
+  std::string following = affixes.suffix;
+  following.append(ContextAfterSegment(segments, index, document_suffix));
+
+  std::vector<ai_ranker::CandidateInput> input;
+  input.reserve(selected_indices.size());
+  for (const size_t candidate_index : selected_indices) {
+    const converter::Candidate& candidate = segment.candidate(candidate_index);
+    input.push_back({"c" + std::to_string(candidate_index),
+                     CandidateFocusText(candidate.value, affixes),
+                     static_cast<int>(input.size() + 1)});
+  }
+  return {"s" + std::to_string(index), std::move(preceding),
+          std::move(following),
+          std::string(segment.key().data(), segment.key().size()),
+          std::move(input)};
+}
+
+std::vector<ai_ranker::BatchSegmentInput> BuildPrefetchBatch(
+    const Segments& segments, absl::string_view document_prefix,
+    absl::string_view document_suffix) {
+  std::vector<ai_ranker::BatchSegmentInput> batch;
+  batch.reserve(segments.conversion_segments_size());
+  for (size_t index = 0; index < segments.conversion_segments_size(); ++index) {
+    ai_ranker::BatchSegmentInput input = BuildBatchSegmentInput(
+        segments, index, document_prefix, document_suffix);
+    // The prefetch wire format reuses the batch schema.  The server computes
+    // the context vector and warms candidate embeddings, but does not rank or
+    // reorder anything; Space can then perform dot products only.
+    batch.push_back(std::move(input));
+  }
+  return batch;
+}
+
+std::string CommittedConversionValue(const Segments& segments) {
+  std::string value;
+  for (const converter::Segment& segment : segments.conversion_segments()) {
+    if (segment.candidates_size() == 0) continue;
+    value.append(segment.candidate(0).value);
+  }
+  return value;
+}
+
+std::string ContextAfterCommit(const ConversionRequest& request,
+                               const Segments& segments) {
+  std::string preceding(request.context().preceding_text());
+  if (preceding.empty()) {
+    // Mozc often supplies the previous commits only as history segments.
+    // Rewrite() uses this same fallback for the next Space request.
+    preceding = segments.history_value();
+  }
+  return AppendIfNotAlreadyAtEnd(std::move(preceding),
+                                 CommittedConversionValue(segments));
+}
+
+std::vector<ai_ranker::BatchSegmentInput> BuildNextContextPrefetchBatch(
+    const ConversionRequest& request, const Segments& segments) {
+  const std::string committed_value = CommittedConversionValue(segments);
+  if (committed_value.empty()) return {};
+
+  std::string preceding = ContextAfterCommit(request, segments);
+  std::string following(request.context().following_text());
+
+  // The context-prefetch wire format intentionally reuses the batch schema.
+  // Candidate vectors are not touched by the context-prefetch handler; this
+  // single inert candidate only satisfies the shared transport schema.
+  std::vector<ai_ranker::CandidateInput> marker_candidates = {
+      {"c0", "文脈", 1}};
+  return {{"post-commit-context", std::move(preceding),
+           std::move(following), "", std::move(marker_candidates)}};
+}
+
+std::string MakeNextContextPrefetchKey(const ConversionRequest& request,
+                                       const Segments& segments) {
+  std::string key = ContextAfterCommit(request, segments);
+  key.push_back('\0');
+  key.append(request.context().following_text().data(),
+             request.context().following_text().size());
+  return key;
+}
+
+std::string MakeCandidatePrefetchKey(const Segments& segments,
+                                     absl::string_view document_prefix,
+                                     absl::string_view document_suffix) {
+  std::string key;
+  // Candidate vectors depend only on the conversion range and candidate
+  // surfaces.  Surrounding text belongs exclusively to the context key.
+  (void)document_prefix;
+  (void)document_suffix;
+  for (const converter::Segment& segment : segments.conversion_segments()) {
+    key.push_back('\0');
+    key.append(segment.key().data(), segment.key().size());
+    for (const size_t index : SelectDistinctCandidateSurfaces(segment)) {
+      key.push_back('\0');
+      key.append(segment.candidate(index).value.data(),
+                  segment.candidate(index).value.size());
+    }
+  }
+  return key;
+}
+
 bool HasCandidateInternalPhraseContext(const converter::Segment& segment) {
   if (segment.candidates_size() < 2) return false;
   const std::vector<size_t> selected =
@@ -405,6 +487,20 @@ bool HasCandidateInternalPhraseContext(const converter::Segment& segment) {
     }
   }
   return false;
+}
+
+void MarkRerankedCandidate(converter::Candidate* candidate) {
+  if (candidate == nullptr) return;
+  candidate->attributes |= converter::Attribute::RERANKED;
+  // The renderer displays descriptions in its side column. Keep the original
+  // description, but give an AI-promoted winner a compact chain badge so
+  // multiple promoted segments read as one conversion streak.
+  if (candidate->description.find("CHAIN") == std::string::npos) {
+    if (!candidate->description.empty()) {
+      candidate->description.append("  ");
+    }
+    candidate->description.append("CHAIN +1");
+  }
 }
 
 bool ApplySelectedPermutation(
@@ -466,23 +562,50 @@ bool ApplySelectedPermutation(
     segment->move_candidate(current, target);
   }
   if (top_promoted) {
-    segment->mutable_candidate(0)->attributes |= converter::Attribute::RERANKED;
+    MarkRerankedCandidate(segment->mutable_candidate(0));
   }
+  return true;
+}
+
+bool ApplyWinner(converter::Segment* segment,
+                 const ai_ranker::BatchSegmentResult& result,
+                 double minimum_confidence) {
+  if (segment == nullptr || result.confidence < minimum_confidence) {
+    return false;
+  }
+  size_t winner_index = 0;
+  if (!ParseCandidateId(result.winner_id, segment->candidates_size(),
+                        &winner_index) || winner_index == 0) {
+    return false;
+  }
+  segment->move_candidate(static_cast<int>(winner_index), 0);
+  MarkRerankedCandidate(segment->mutable_candidate(0));
   return true;
 }
 
 }  // namespace
 
 int AiRewriter::capability(const ConversionRequest& request) const {
-  if (request.options().used_in_predictor_realtime_conversion) {
-    // Realtime conversion is used only to warm the speculative cache.  Rewrite
-    // never applies an AI permutation on this path, so typing remains instant.
-    return RewriterInterface::CONVERSION;
+  // A realtime predictor request is the background-prefetch path only while
+  // Mozc marks it as a slow-rewriter-skipping request.  Some Mozc conversion
+  // flows keep the predictor marker on the final Space/Enter request; those
+  // requests must continue into the explicit ranking path below.
+  if (request.options().used_in_predictor_realtime_conversion &&
+      request.options().skip_slow_rewriters) {
+    // RealtimeDecoder intentionally keeps request_type=CONVERSION while it
+    // asks the actual converter for the top prediction. MergerRewriter
+    // dispatches by request_type, so returning only PREDICTION silently skips
+    // the context prefetch in the production path.
+    return RewriterInterface::CONVERSION | RewriterInterface::PREDICTION;
   }
   if (request.options().skip_slow_rewriters) {
     return RewriterInterface::NOT_AVAILABLE;
   }
-  return RewriterInterface::CONVERSION;
+  // Mozc's realtime conversion path can deliver the final candidate list as
+  // PREDICTION even when the user commits it with Space/Enter. The marker
+  // path above handles background prefetch; ordinary prediction requests
+  // must also reach the final cached dot-product ranking pass.
+  return RewriterInterface::CONVERSION | RewriterInterface::PREDICTION;
 }
 
 std::optional<RewriterInterface::ResizeSegmentsRequest>
@@ -498,146 +621,55 @@ AiRewriter::CheckResizeSegmentsRequest(const ConversionRequest& request,
     return std::nullopt;
   }
 
-  ai_ranker::Client client(pipe_name_);
-  if (!client.IsAvailable(25)) return std::nullopt;
-
-  constexpr size_t kMinCompoundChars = 4;
-  constexpr size_t kMaxCompoundChars = 12;
-
-  if (count == 1) {
-    const converter::Segment& segment = segments.conversion_segment(0);
-    if (!IsRerankableSegment(segment) || segment.candidates_size() == 0 ||
-        segment.candidates_size() > 4) {
-      return std::nullopt;
-    }
-    const std::string key(segment.key());
-    const size_t key_chars = Util::CharsLen(key);
-    if (key_chars < kMinCompoundChars || key_chars > kMaxCompoundChars) {
-      return std::nullopt;
-    }
-
-    size_t split_chars = 0;
-    size_t valid_splits = 0;
-    for (size_t split = 2; split + 2 <= key_chars; ++split) {
-      const absl::string_view prefix = Util::Utf8SubString(key, 0, split);
-      const absl::string_view suffix =
-          Util::Utf8SubString(key, split, key_chars - split);
-      if (dictionary_->HasKey(prefix) && dictionary_->HasKey(suffix)) {
-        split_chars = split;
-        ++valid_splits;
-      }
-    }
-    if (valid_splits != 1) return std::nullopt;
-
-    const absl::string_view left_key = Util::Utf8SubString(key, 0, split_chars);
-    const absl::string_view right_key =
-        Util::Utf8SubString(key, split_chars, key_chars - split_chars);
-    const std::vector<SurfaceOption> split_surfaces =
-        BuildSplitSurfaces(dictionary_, left_key, right_key);
-    std::vector<std::string> repairs;
-    const std::string baseline = SegmentTopSurface(segment);
-    for (const SurfaceOption& option : split_surfaces) {
-      if (option.value == baseline || SegmentContainsSurface(segment, option.value)) {
-        continue;
-      }
-      repairs.push_back(option.value);
-      if (repairs.size() >= kBoundaryRepairLimit) break;
-    }
-    if (!BoundaryRepairWins(client, request, segments, key, baseline, repairs)) {
-      return std::nullopt;
-    }
-
-    ResizeSegmentsRequest resize_request = {
-        .segment_index = 0,
-        .segment_sizes = {
-            static_cast<uint8_t>(split_chars),
-            static_cast<uint8_t>(key_chars - split_chars), 0, 0, 0, 0, 0, 0},
-    };
-    return resize_request;
-  }
-
-  // Numeric/abbreviation supplements may span two as well as three or more
-  // Mozc segments (e.g. じゅう + ご + にち, or API + 連携).  Resize only the
-  // recognized prefix so trailing particles/verbs remain independently
-  // convertible.
-  {
-    const std::string reading = FullReading(segments);
-    const size_t supplemental_prefix_chars = SupplementalPrefixChars(reading);
-    if (supplemental_prefix_chars > 0 &&
-        supplemental_prefix_chars <= kMaxCompoundChars) {
-      ResizeSegmentsRequest resize_request = {.segment_index = 0};
-      resize_request.segment_sizes[0] =
-          static_cast<uint8_t>(supplemental_prefix_chars);
-      return resize_request;
-    }
-  }
-
-  if (count != 2) return std::nullopt;
-
-  size_t total_key_chars = 0;
-  for (const converter::Segment& segment : segments.conversion_segments()) {
-    if (segment.segment_type() != converter::Segment::FREE ||
-        segment.candidates_size() == 0) {
-      return std::nullopt;
-    }
-    total_key_chars += segment.key_len();
-  }
-  if (total_key_chars < 2 || total_key_chars > kMaxCompoundChars) {
-    return std::nullopt;
-  }
-
-  const converter::Segment& first = segments.conversion_segment(0);
-  const converter::Segment& second = segments.conversion_segment(1);
+  // Boundary repair used to issue a separate AI request before the final
+  // rerank.  That made one Space operation pay for multiple synchronous model
+  // calls.  Keep deterministic supplemental-prefix resizing below, but leave
+  // semantic boundary decisions to Mozc so the AI path stays one batch request
+  // per conversion.
   const std::string reading = FullReading(segments);
-  const std::string baseline = CurrentSurface(segments);
-  ResizeSegmentsRequest resize_request = {.segment_index = 0};
-
-  if (second.key_len() <= 2) {
-    if (total_key_chars < kMinCompoundChars || IsGrammarLikeKey(first.key()) ||
-        IsGrammarLikeKey(second.key())) {
-      return std::nullopt;
-    }
-    const std::vector<SurfaceOption> whole_surfaces =
-        LookupExactSurfaces(dictionary_, reading, kBoundaryRepairLimit);
-    const std::vector<std::string> repairs =
-        RepairValues(whole_surfaces, baseline);
-    if (!BoundaryRepairWins(client, request, segments, reading, baseline,
-                            repairs)) {
-      return std::nullopt;
-    }
+  const size_t supplemental_prefix_chars = SupplementalPrefixChars(reading);
+  if (supplemental_prefix_chars > 0 && supplemental_prefix_chars <= 12) {
+    ResizeSegmentsRequest resize_request = {.segment_index = 0};
     resize_request.segment_sizes[0] =
-        static_cast<uint8_t>(total_key_chars);
+        static_cast<uint8_t>(supplemental_prefix_chars);
     return resize_request;
   }
-
-  // Lock an existing two-word boundary only when it exposes a whole-surface
-  // reading that the unsegmented dictionary path does not offer and the AI
-  // clearly prefers that split-only path.  This is the transactional version
-  // of the old 飛行 + 少年 protection: no confident repair, no boundary change.
-  const std::vector<SurfaceOption> whole_surfaces =
-      LookupExactSurfaces(dictionary_, reading, kBoundaryRepairLimit);
-  if (whole_surfaces.empty()) return std::nullopt;
-  const std::vector<SurfaceOption> split_surfaces =
-      BuildSplitSurfaces(dictionary_, first.key(), second.key());
-  const std::vector<std::string> repairs =
-      RepairValues(split_surfaces, baseline, &whole_surfaces);
-  if (!BoundaryRepairWins(client, request, segments, reading, baseline,
-                          repairs)) {
-    return std::nullopt;
-  }
-  resize_request.segment_sizes[0] = static_cast<uint8_t>(first.key_len());
-  resize_request.segment_sizes[1] = static_cast<uint8_t>(second.key_len());
-  return resize_request;
+  return std::nullopt;
 }
 
 bool AiRewriter::Rewrite(const ConversionRequest& request,
                          Segments* segments) const {
-  const bool realtime_prefetch =
-      request.options().used_in_predictor_realtime_conversion;
-  if (request.options().skip_slow_rewriters && !realtime_prefetch) {
+  if (segments == nullptr || segments->conversion_segments_size() == 0) {
     return false;
   }
-  if (segments == nullptr || segments->conversion_segments_size() == 0) {
+
+  if (request.options().used_in_predictor_realtime_conversion &&
+      request.options().skip_slow_rewriters) {
+    // The composition is still changing here.  Only candidate vectors are
+    // valid to prefetch on this path.  Context vectors are started from
+    // Finish(), after the current conversion has actually been committed.
+    const std::vector<ai_ranker::BatchSegmentInput> prefetch =
+        BuildPrefetchBatch(*segments, request.context().preceding_text(),
+                           request.context().following_text());
+    if (!prefetch.empty()) {
+      ai_ranker::Client client(pipe_name_);
+      const std::string candidate_key = MakeCandidatePrefetchKey(
+          *segments, request.context().preceding_text(),
+          request.context().following_text());
+      bool send_candidates = false;
+      {
+        std::lock_guard<std::mutex> lock(prefetch_mutex_);
+        send_candidates = candidate_key != last_candidate_prefetch_key_;
+      }
+      if (send_candidates && client.PrefetchCandidateBatch(prefetch, 25)) {
+        std::lock_guard<std::mutex> lock(prefetch_mutex_);
+        last_candidate_prefetch_key_ = candidate_key;
+      }
+    }
+    return false;
+  }
+
+  if (request.options().skip_slow_rewriters) {
     return false;
   }
 
@@ -673,57 +705,15 @@ bool AiRewriter::Rewrite(const ConversionRequest& request,
     return false;
   }
 
-  if (realtime_prefetch) {
-    // Realtime conversion is latency-sensitive: enqueue only the nearest
-    // rerankable segment and never modify prediction candidates.  The Python
-    // ranker returns Mozc order immediately, then scores the latest request on
-    // its background worker for a later Space/Convert cache hit.
-    ai_ranker::Client client(pipe_name_);
-    for (size_t reverse = segments->conversion_segments_size(); reverse > 0;
-         --reverse) {
-      const size_t index = reverse - 1;
-      const converter::Segment& segment = segments->conversion_segment(index);
-      if (!IsRerankableSegment(segment) || segment.candidates_size() < 2) {
-        continue;
-      }
-      const std::vector<size_t> selected_indices =
-          SelectDistinctCandidateSurfaces(segment);
-      if (selected_indices.size() < 2) continue;
-
-      std::vector<ai_ranker::CandidateInput> input;
-      input.reserve(selected_indices.size());
-      for (size_t candidate_index : selected_indices) {
-        const converter::Candidate& candidate =
-            segment.candidate(candidate_index);
-        input.push_back({"c" + std::to_string(candidate_index), candidate.value,
-                         static_cast<int>(input.size() + 1)});
-      }
-      const std::string segment_prefix =
-          ContextBeforeSegment(*segments, index, preceding_text);
-      const std::string following_text =
-          ContextAfterSegment(*segments, index, trailing_text);
-      client.Prefetch(
-          segment_prefix, following_text,
-          std::string(segment.key().data(), segment.key().size()), input,
-          kPrefetchAckTimeoutMs);
-      break;
-    }
-    return false;
-  }
-
   const Clock::time_point deadline =
       Clock::now() + std::chrono::milliseconds(ai_ranker::kDefaultTimeoutMs);
   ai_ranker::Client client(pipe_name_);
-  bool any_reordered = false;
-
-  // Work from the caret/back of the composition.  A single slow segment must
-  // not consume the shared conversion deadline before the user's most recent
-  // text gets considered.  Context is rebuilt from the current candidate-zero
-  // surfaces on every iteration, so earlier segments also see any successful
-  // promotion already made to their right.
-  for (size_t reverse = segments->conversion_segments_size(); reverse > 0;
-       --reverse) {
-    const size_t index = reverse - 1;
+  std::vector<ai_ranker::BatchSegmentInput> batch;
+  std::vector<size_t> batch_segment_indices;
+  batch.reserve(rerankable_segments);
+  batch_segment_indices.reserve(rerankable_segments);
+  for (size_t index = 0; index < segments->conversion_segments_size();
+       ++index) {
     converter::Segment* segment = segments->mutable_conversion_segment(index);
     if (segment == nullptr || !IsRerankableSegment(*segment)) {
       continue;
@@ -736,39 +726,81 @@ bool AiRewriter::Rewrite(const ConversionRequest& request,
 
     const std::vector<size_t> selected_indices =
         SelectDistinctCandidateSurfaces(*segment);
-    const size_t limit = selected_indices.size();
-    if (limit < 2) continue;
-    std::vector<ai_ranker::CandidateInput> input;
-    input.reserve(limit);
-    for (size_t candidate_index : selected_indices) {
-      const converter::Candidate& candidate = segment->candidate(candidate_index);
-      input.push_back({"c" + std::to_string(candidate_index), candidate.value,
-                       static_cast<int>(input.size() + 1)});
-    }
+    if (selected_indices.size() < 2) continue;
+    batch.push_back(BuildBatchSegmentInput(*segments, index, preceding_text,
+                                           trailing_text));
+    batch_segment_indices.push_back(index);
+  }
 
-    const std::string segment_prefix =
-        ContextBeforeSegment(*segments, index, preceding_text);
-    const std::string following_text =
-        ContextAfterSegment(*segments, index, trailing_text);
+  if (batch.empty()) return false;
 
-    const int remaining_ms = RemainingBudgetMs(deadline);
-    if (remaining_ms <= 0) break;
+  std::vector<ai_ranker::BatchSegmentResult> initial_results;
+  if (!client.RankBatch(batch, RemainingBudgetMs(deadline), &initial_results)) {
+    return false;
+  }
 
-    std::vector<ai_ranker::RankedCandidate> ranked;
-    const bool rank_ok = client.Rank(
-        segment_prefix, following_text,
-        std::string(segment->key().data(), segment->key().size()), input,
-        remaining_ms, &ranked);
-    if (!rank_ok || ranked.size() != limit) {
+  std::vector<size_t> retry_indices;
+  retry_indices.reserve(batch.size());
+  bool any_reordered = false;
+  for (size_t batch_index = 0; batch_index < batch.size(); ++batch_index) {
+    const auto result_it = std::find_if(
+        initial_results.begin(), initial_results.end(), [&](const auto& result) {
+          return result.id == batch[batch_index].id;
+        });
+    if (result_it == initial_results.end() ||
+        result_it->confidence < kBatchHighConfidence) {
+      retry_indices.push_back(batch_index);
       continue;
     }
+    const size_t segment_index = batch_segment_indices[batch_index];
+    any_reordered =
+        ApplyWinner(segments->mutable_conversion_segment(segment_index),
+                    *result_it, kBatchHighConfidence) || any_reordered;
+  }
 
-    if (ApplySelectedPermutation(segment, ranked, selected_indices)) {
-      any_reordered = true;
+  // Only uncertain segments pay for a second pass.  They are rebuilt in
+  // composition order so each later retry can see earlier winners.
+  for (const size_t batch_index : retry_indices) {
+    if (RemainingBudgetMs(deadline) <= 0) break;
+    const size_t segment_index = batch_segment_indices[batch_index];
+    converter::Segment* segment =
+        segments->mutable_conversion_segment(segment_index);
+    if (segment == nullptr) continue;
+    const std::vector<size_t> selected_indices =
+        SelectDistinctCandidateSurfaces(*segment);
+    if (selected_indices.size() < 2) continue;
+    const std::vector<ai_ranker::BatchSegmentInput> retry = {
+        BuildBatchSegmentInput(*segments, segment_index, preceding_text,
+                               trailing_text)};
+    std::vector<ai_ranker::BatchSegmentResult> retry_results;
+    if (!client.RankBatch(retry, RemainingBudgetMs(deadline), &retry_results) ||
+        retry_results.size() != 1) {
+      continue;
     }
+    any_reordered = ApplyWinner(segment, retry_results[0],
+                                kRetryMinimumConfidence) || any_reordered;
   }
 
   return any_reordered;
+}
+
+void AiRewriter::Finish(const ConversionRequest& request,
+                        const Segments& segments) const {
+  const std::vector<ai_ranker::BatchSegmentInput> prefetch =
+      BuildNextContextPrefetchBatch(request, segments);
+  if (prefetch.empty()) return;
+
+  const std::string context_key =
+      MakeNextContextPrefetchKey(request, segments);
+  {
+    std::lock_guard<std::mutex> lock(prefetch_mutex_);
+    if (context_key == last_context_prefetch_key_) return;
+  }
+
+  ai_ranker::Client client(pipe_name_);
+  if (!client.PrefetchContextBatch(prefetch, 25)) return;
+  std::lock_guard<std::mutex> lock(prefetch_mutex_);
+  last_context_prefetch_key_ = context_key;
 }
 
 }  // namespace mozc

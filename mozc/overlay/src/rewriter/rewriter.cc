@@ -131,10 +131,10 @@ ABSL_FLAG(bool, use_history_rewriter, false, "Use history rewriter or not.");
 namespace mozc {
 namespace {
 
-// Boundary planning must happen before the normal Mozc rewrite pass so the AI
-// can preserve or repair useful word boundaries.  Candidate reranking itself
-// must not happen here: later Mozc rewriters (especially history rewriters)
-// are allowed to reorder candidates and would overwrite the AI result.
+// Deterministic boundary planning must happen before the normal Mozc rewrite
+// pass.  Candidate reranking itself must not happen here: later Mozc rewriters
+// (especially history rewriters) are allowed to reorder candidates and would
+// overwrite the AI result.
 class AiBoundaryPlanner final : public RewriterInterface {
  public:
   explicit AiBoundaryPlanner(
@@ -177,6 +177,11 @@ class FinalAiRewriter final : public RewriterInterface {
   bool Rewrite(const ConversionRequest& request,
                Segments* segments) const override {
     return delegate_.Rewrite(request, segments);
+  }
+
+  void Finish(const ConversionRequest& request,
+              const Segments& segments) override {
+    delegate_.Finish(request, segments);
   }
 
  private:

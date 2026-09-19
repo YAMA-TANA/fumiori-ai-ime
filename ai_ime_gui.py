@@ -15,6 +15,8 @@ from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox
 
+from product_settings import PRODUCT_NAME
+
 ROOT = Path(__file__).resolve().parents[0]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -34,7 +36,7 @@ class MozcMiniWidget:
 
     def __init__(self) -> None:
         self.root = tk.Tk()
-        self.root.title("Mozc AI IME スイッチ")
+        self.root.title(f"{PRODUCT_NAME} スイッチ")
         self.root.geometry("360x180")
         self.root.resizable(False, False)
         self.root.attributes("-topmost", True)
@@ -52,7 +54,7 @@ class MozcMiniWidget:
         # Header
         lbl_title = tk.Label(
             self.root,
-            text="⚡ Mozc AI IME コントローラー",
+            text=f"⚡ {PRODUCT_NAME} コントローラー",
             font=("Segoe UI", 12, "bold"),
             fg="#cdd6f4",
             bg="#1e1e2e",

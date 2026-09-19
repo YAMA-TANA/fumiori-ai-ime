@@ -1,4 +1,4 @@
-"""Build the standalone Yamatana AI IME (MOZC Ver) MSI with WiX 4."""
+"""Build the standalone Fumiori AI IME MSI with WiX 4."""
 
 from __future__ import annotations
 
@@ -212,13 +212,6 @@ def build_msi() -> Path:
     installer_text = (MOZC / "win32" / "installer" / "installer_oss_64bit.wxs").read_text(
         encoding="utf-8"
     )
-    installer_text = installer_text.replace(
-        '    <CustomAction Id="LaunchYamatanaTray" FileRef="YamatanaAIIME.exe" ExeCommand="--from-installer" Execute="immediate" Impersonate="yes" Return="asyncNoWait" />\n',
-        "",
-    ).replace(
-        '      <Custom Action="LaunchYamatanaTray" Before="InstallFinalize" Condition="(NOT Installed) AND (ACTION=&quot;INSTALL&quot;)" />\n',
-        "",
-    )
     installer_wxs.write_text(installer_text, encoding="utf-8")
 
     wix_command = shutil.which("wix") or shutil.which("wix.exe")
@@ -249,6 +242,10 @@ def build_msi() -> Path:
     command = [
         str(wix_exe), "build", "-nologo", "-arch", "x64",
         "-ext", "WixToolset.UI.wixext",
+        "-dcl", os.environ.get("YAMATANA_WIX_COMPRESSION", "low"),
+        "-ct", os.environ.get("YAMATANA_WIX_CAB_THREADS", "4"),
+        "-intermediatefolder", str(BUILD_DIR / "wix-intermediate"),
+        "-pdbtype", "none",
     ]
     for name, value in inputs.items():
         command.extend(["-define", f"{name}={value}"])

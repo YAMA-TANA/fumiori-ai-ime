@@ -1,24 +1,34 @@
 {
   "schema": 1,
   "bundle": {
-    "version": "v2.0.5-beta-70m",
-    "url": "https://github.com/YAMA-TANA/yamatana-ai-ime/releases/download/v2.0.5-beta/yamatana-reranker-70m-v2.0.5-beta.zip",
-    "bytes": 170345464,
-    "sha256": "DC0CB8342B8B568640781E5711B133DA76AC662BA682E0D652E1CFCEB866F565"
+    "version": "v2.0.6-beta-70m-ensemble",
+    "url": "https://github.com/YAMA-TANA/yamatana-ai-ime/releases/download/v2.0.6-beta/yamatana-reranker-70m-v2.0.6-beta-ensemble.zip",
+    "bytes": 334020271,
+    "sha256": "AAE09C50CA0FAA9151BE1B59CC2675FCF794CD851932A663A7B950B669B8D0DF"
   },
   "files": [
     {
-      "path": "build/onnx-model-70m/ruri-ime-fp16.onnx",
+      "path": "build/onnx-model-70m-lora3-20260909/ruri-ime-fp16.onnx",
       "bytes": 140622837,
-      "sha256": "2F854E38B9F6F4053377E427DCE2F12382CB97E4E6977DD7521D844F3AF89C13"
+      "sha256": "4275755DB7C510E044595DDDA770C135BEE4FC5B353BEF1428D005F360405C1A"
     },
     {
-      "path": "build/onnx-model-70m/ruri-ime-int8.onnx",
+      "path": "build/onnx-model-70m-lora3-20260909/ruri-ime-int8.onnx",
       "bytes": 71049496,
-      "sha256": "A46196C7220340416D81F43C3F1E02FFF6C084F0C15E620323825B9B1090EED8"
+      "sha256": "AED308D2E2ABEC90D8191F1FE2174BAE1EA1551AFE4A09E566A075A4E185ED11"
     },
     {
-      "path": "models/ruri-v3-70m-ime-distilled/tokenizer.json",
+      "path": "build/onnx-model-70m-lora6-preceding-only-20260915/ruri-ime-fp16.onnx",
+      "bytes": 140622837,
+      "sha256": "5F648D5236B88C276643D5F275C0F0EE954B2CF6A485B5BBE04470E1567DCA57"
+    },
+    {
+      "path": "build/onnx-model-70m-lora6-preceding-only-20260915/ruri-ime-int8.onnx",
+      "bytes": 71049496,
+      "sha256": "A0485C5B570E6578F5F2912AD8441172802B95CE3D99F4A279BDF41B3189EEF1"
+    },
+    {
+      "path": "build/onnx-model-70m/tokenizer.json",
       "bytes": 6725126,
       "sha256": "DE5307DD1171C748294224C016189C0FA364168AD4560736EC2BA5EC5A032657"
     },
@@ -29,8 +39,8 @@
     },
     {
       "path": "MODEL_CARD.md",
-      "bytes": 2688,
-      "sha256": "F62CE0751ED615D5AF281368869B6A112185112202004A7B651108950F5409B2"
+      "bytes": 2827,
+      "sha256": "2A2C1B1289893D1552A2594E8C4A4E82C45A3C90A456107A9C58B1CF8F7AC815"
     }
   ]
 }
