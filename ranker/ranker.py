@@ -617,7 +617,10 @@ def _windows_pipe_server(pipe_name: str, ranker: Any, show_ui: bool = True,
                                  (time.perf_counter() - started) * 1000.0)
                         if runtime_status is not None:
                             latency_ms = (time.perf_counter() - started) * 1000.0
-                            is_ime = request_id.startswith("mozc-")
+                            is_ime = (
+                                request_id.startswith("mozc-")
+                                and observed.get("inference_trigger") == "explicit"
+                            )
                             updates: Dict[str, Any] = dict(
                                 requests=int(runtime_status.data["requests"]) + 1,
                                 ime_requests=(
@@ -627,7 +630,11 @@ def _windows_pipe_server(pipe_name: str, ranker: Any, show_ui: bool = True,
                                 ),
                                 last_request_at=time.time(),
                                 last_latency_ms=round(latency_ms, 3),
-                                last_source="mozc" if is_ime else "probe",
+                                last_source=(
+                                    "mozc" if is_ime else
+                                    "prefetch" if request_id.startswith("mozc-")
+                                    else "probe"
+                                ),
                             )
                             if is_ime:
                                 response = loads_strict(output.decode("utf-8"))

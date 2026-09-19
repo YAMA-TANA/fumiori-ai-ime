@@ -61,6 +61,10 @@ class FakeBase:
                     score = {'構成': 0.1, '校正': 3.0}[text]
                 else:
                     score = {'構成': 1.1, '校正': 0.2}[text]
+            elif reading == 'はな':
+                score = {'花': 0.0, '鼻': 3.0}[text] if '顔' in prefix else 0.0
+            elif reading == 'はかる':
+                score = {'図る': 0.0, '測る': 3.0}[text] if '距離' in prefix else 0.0
             else:
                 score = 0.0
             values.append({'id': candidate['id'], 'final_score': score})
@@ -163,11 +167,30 @@ def test_no_context_preserves_mozc_top(monkeypatch):
     assert len(runner.encoding_batches) == 0
 
 
-def test_space_cache_miss_does_not_start_inference_on_pipe_thread(monkeypatch):
+def test_explicit_conversion_completes_cache_misses(monkeypatch):
     mod = load_wrapper(monkeypatch)
     runner = mod.OnnxDualEncoderIMEReranker()
     result = runner.rank_batch(example())
-    assert [s['winner_id'] for s in result['segments']] == ['c0', 'c0']
-    assert len(runner.encoding_batches) == 0
-    assert len(runner.candidate_preloads) == 0
+    assert [s['winner_id'] for s in result['segments']] == ['c1', 'c1']
+    assert len(runner.encoding_batches) == 1
+    assert len(runner.candidate_preloads) == 1
     assert len(runner.wait_calls) == 1
+
+
+def test_first_explicit_conversion_reranks_face_and_distance_examples(monkeypatch):
+    mod = load_wrapper(monkeypatch)
+    runner = mod.OnnxDualEncoderIMEReranker()
+    for reading, prefix, original, expected in (
+        ('はな', '彼の顔の', '花', '鼻'),
+        ('はかる', '月と地球の距離を', '図る', '測る'),
+    ):
+        request = {'request_id': reading, 'segments': [{
+            'id': 's0', 'preceding_text': prefix, 'following_text': '',
+            'read': reading, 'candidates': [
+                {'id': 'c0', 'text': original, 'rank': 1},
+                {'id': 'c1', 'text': expected, 'rank': 2},
+            ],
+        }]}
+        result = runner.rank_batch(request)
+        assert result['segments'][0]['winner_id'] == 'c1'
+        assert result['segments'][0]['confidence'] >= .65

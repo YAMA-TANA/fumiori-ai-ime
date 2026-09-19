@@ -8,6 +8,7 @@ public APIs remain inherited.  No additional model or training is required.
 from __future__ import annotations
 
 import math
+import logging
 import threading
 from typing import Any, Dict, List, Sequence
 
@@ -21,6 +22,7 @@ from ranker.onnx_dual_encoder_base import (
 _MIN_PATH_GAIN = 0.55
 _MIN_PATH_MARGIN = 0.30
 _CONFIDENT_PATH = 0.66  # Mozc's batch acceptance threshold is 0.65.
+LOG = logging.getLogger("yamatana_ai_ime.onnx_dual_encoder_joint")
 
 
 def _candidate_text(candidate: Dict[str, Any]) -> str:
@@ -174,19 +176,23 @@ class OnnxDualEncoderIMEReranker(_BaseRanker):
             for segment in segments
             for candidate in segment.get("candidates", [])
         ]
-        # Space/Enter is read-only: never encode a context or candidate on the
-        # pipe request thread.  If either side is still being prefetched, wait
-        # briefly for the already-running workers.  A cache miss after that
-        # wait is a safe Mozc-order fallback; it must not start new inference.
+        # Prefetch is best effort.  The first conversion in a document has no
+        # committed context to prefetch, and realtime prediction can omit a
+        # candidate.  Complete those misses on the explicit conversion path
+        # while Mozc's bounded client deadline is still available.
         with self._joint_context_lock:
             vectors = self._get_cached_context_vectors(queries)
-        cache_ready = self._wait_for_prefetch_cache(queries, words)
-        if not cache_ready:
-            return self._baseline_batch_response(request)
-        if vectors is None:
-            with self._joint_context_lock:
-                vectors = self._get_cached_context_vectors(queries)
-        if vectors is None:
+        cache_ready = self._wait_for_prefetch_cache(
+            queries, words, timeout_seconds=0.05
+        )
+        try:
+            if vectors is None:
+                with self._joint_context_lock:
+                    vectors = self._get_context_vectors(queries)
+            if not cache_ready:
+                self.preload_candidates(words)
+        except Exception:
+            LOG.exception("explicit conversion cache completion failed")
             return self._baseline_batch_response(request)
         by_query = dict(zip(queries, vectors))
 
