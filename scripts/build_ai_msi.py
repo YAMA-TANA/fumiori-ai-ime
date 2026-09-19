@@ -219,6 +219,12 @@ def build_msi() -> Path:
         '      <Custom Action="LaunchYamatanaTray" Before="InstallFinalize" Condition="(NOT Installed) AND (ACTION=&quot;INSTALL&quot;)" />\n',
         "",
     )
+    installer_text = installer_text.replace(
+        '    <WixVariable Id="WixUILicenseRtf" Value="$(var.PrivacyRtf)" />\n',
+        '    <WixVariable Id="WixUILicenseRtf" Value="$(var.PrivacyRtf)" />\n'
+        '    <Property Id="WIXUI_EXITDIALOGOPTIONALTEXT" '
+        'Value="インストールは完了しました。変更を反映するには Windows の再起動が必要です。" />\n',
+    )
     installer_wxs.write_text(installer_text, encoding="utf-8")
 
     wix_command = shutil.which("wix") or shutil.which("wix.exe")
