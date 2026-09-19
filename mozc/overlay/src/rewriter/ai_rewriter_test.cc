@@ -328,6 +328,36 @@ TEST(AiRewriterTest, PredictorRealtimeMarkerSplitsContextAndCandidatesPrefetch) 
   EXPECT_FALSE(rewriter.Rewrite(request, &segments));
 }
 
+TEST(AiRewriterTest, PredictorMarkerOnFinalConversionRunsAiRanker) {
+  ConversionRequest::Options options;
+  options.request_type = ConversionRequest::CONVERSION;
+  options.used_in_predictor_realtime_conversion = true;
+
+  const std::wstring pipe_name =
+      L"\\\\.\\pipe\\yamatana_ai_rewriter_final_marker_test";
+  FakeRankerServer server(pipe_name, "c1");
+  ASSERT_TRUE(server.valid());
+
+  Segments segments;
+  Segment* segment = segments.add_segment();
+  segment->set_key("はな");
+  segment->add_candidate()->value = "花";
+  segment->add_candidate()->value = "鼻";
+
+  commands::Context context;
+  context.set_preceding_text("彼の顔の");
+  const ConversionRequest final_request =
+      ConversionRequestBuilder()
+          .SetContext(context)
+          .SetOptions(std::move(options))
+          .Build();
+  AiRewriter rewriter(pipe_name);
+
+  EXPECT_TRUE(rewriter.Rewrite(final_request, &segments));
+  EXPECT_EQ(segments.segment(0).candidate(0).value, "鼻");
+  EXPECT_EQ(segments.segment(0).candidate(1).value, "花");
+}
+
 #ifdef _WIN32
 TEST(AiRewriterTest, SemanticBoundaryRepairDoesNotIssueAnAiRequest) {
   CompoundDictionary dictionary;

@@ -552,7 +552,12 @@ bool ApplyWinner(converter::Segment* segment,
 }  // namespace
 
 int AiRewriter::capability(const ConversionRequest& request) const {
-  if (request.options().used_in_predictor_realtime_conversion) {
+  // A realtime predictor request is the background-prefetch path only while
+  // Mozc marks it as a slow-rewriter-skipping request.  Some Mozc conversion
+  // flows keep the predictor marker on the final Space/Enter request; those
+  // requests must continue into the explicit ranking path below.
+  if (request.options().used_in_predictor_realtime_conversion &&
+      request.options().skip_slow_rewriters) {
     // RealtimeDecoder intentionally keeps request_type=CONVERSION while it
     // asks the actual converter for the top prediction. MergerRewriter
     // dispatches by request_type, so returning only PREDICTION silently skips
@@ -604,7 +609,8 @@ bool AiRewriter::Rewrite(const ConversionRequest& request,
     return false;
   }
 
-  if (request.options().used_in_predictor_realtime_conversion) {
+  if (request.options().used_in_predictor_realtime_conversion &&
+      request.options().skip_slow_rewriters) {
     std::string preceding_text(request.context().preceding_text());
     if (preceding_text.empty()) {
       preceding_text = segments->history_value();
