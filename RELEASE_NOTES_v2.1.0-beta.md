@@ -60,7 +60,7 @@
 実行コマンド:
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\lotof\Videos\research\live2d\yamatana-ai-ime\build\hotfix-20260919-r10\scripts\apply_hotfix.ps1"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ".\scripts\apply_hotfix.ps1"
 ```
 
 この hotfix は現在の MSI と同じランタイムに対する差分配布です。完全な MSI の再生成は WiX の巨大 CAB bind 工程が停止するため、今回の Release では hotfix を追加配布しています。
