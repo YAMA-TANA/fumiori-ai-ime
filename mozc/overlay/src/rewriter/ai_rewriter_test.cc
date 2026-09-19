@@ -17,6 +17,7 @@
 #include "converter/candidate.h"
 #include "converter/segments.h"
 #include "dictionary/dictionary_interface.h"
+#include "rewriter/ai_ranker_client.h"
 #include "protocol/commands.pb.h"
 #include "request/conversion_request.h"
 #include "rewriter/rewriter_interface.h"
@@ -89,6 +90,11 @@ class FakeRankerServer {
     return candidate_counts_;
   }
 
+  std::vector<std::string> requests() const {
+    std::lock_guard<std::mutex> lock(readings_mutex_);
+    return requests_;
+  }
+
  private:
   void Serve() {
     for (size_t request_index = 0; request_index < expected_requests_;
@@ -111,6 +117,10 @@ class FakeRankerServer {
       request.append(buffer, buffer + read);
       if (!request.empty() && request.back() == '\n') break;
       if (request.size() > 262144) return false;
+    }
+    {
+      std::lock_guard<std::mutex> lock(readings_mutex_);
+      requests_.push_back(request);
     }
 
     const bool is_batch = request.find("\"segments\":[") != std::string::npos;
@@ -266,6 +276,7 @@ class FakeRankerServer {
   size_t expected_requests_;
   mutable std::mutex readings_mutex_;
   std::vector<std::string> readings_;
+  std::vector<std::string> requests_;
   std::vector<size_t> candidate_counts_;
   HANDLE pipe_ = INVALID_HANDLE_VALUE;
   std::thread thread_;
@@ -326,6 +337,26 @@ TEST(AiRewriterTest, PredictorRealtimeMarkerPrefetchesCandidatesOnly) {
   segment->add_candidate()->value = "花";
   segment->add_candidate()->value = "鼻";
   EXPECT_FALSE(rewriter.Rewrite(request, &segments));
+  for (int attempt = 0; attempt < 10 && server.requests().empty(); ++attempt) {
+    Sleep(1);
+  }
+  ASSERT_EQ(server.requests().size(), 1);
+}
+
+TEST(AiRewriterTest, PrefetchClientWritesToPipe) {
+  const std::wstring pipe_name =
+      L"\\\\.\\pipe\\yamatana_ai_rewriter_prefetch_client_test";
+  FakeRankerServer server(pipe_name, "c0");
+  ASSERT_TRUE(server.valid());
+  ai_ranker::Client client(pipe_name);
+  EXPECT_TRUE(client.IsAvailable(1000));
+  const std::vector<ai_ranker::BatchSegmentInput> batch = {
+      {"s0", "彼の顔の", "", "はな", {{"c0", "花", 1}, {"c1", "鼻", 2}}}};
+  EXPECT_TRUE(client.PrefetchCandidateBatch(batch, 1000));
+  for (int attempt = 0; attempt < 10 && server.requests().empty(); ++attempt) {
+    Sleep(1);
+  }
+  ASSERT_EQ(server.requests().size(), 1);
 }
 
 TEST(AiRewriterTest, FinishPrefetchesTheCommittedContextForTheNextConversion) {
@@ -348,6 +379,74 @@ TEST(AiRewriterTest, FinishPrefetchesTheCommittedContextForTheNextConversion) {
 
   AiRewriter rewriter(pipe_name);
   rewriter.Finish(request, segments);
+  for (int attempt = 0; attempt < 100 && server.requests().empty(); ++attempt) {
+    Sleep(1);
+  }
+  ASSERT_EQ(server.requests().size(), 1);
+  EXPECT_NE(server.requests()[0].find(
+                "\"preceding_text\":\"庭の大きな花\""),
+            std::string::npos);
+}
+
+TEST(AiRewriterTest, FinishPrefetchIncludesMozcHistoryWhenHostContextIsEmpty) {
+  const std::wstring pipe_name =
+      L"\\\\.\\pipe\\yamatana_ai_rewriter_history_prefetch_test";
+  FakeRankerServer server(
+      pipe_name, "c0", "\"inference_trigger\":\"context_prefetch\"", 1);
+  ASSERT_TRUE(server.valid());
+
+  Segments segments;
+  Segment* history = segments.add_segment();
+  history->set_segment_type(Segment::HISTORY);
+  history->set_key("かれの");
+  history->add_candidate()->value = "彼の";
+  Segment* committed = segments.add_segment();
+  committed->set_key("かおの");
+  committed->add_candidate()->value = "顔の";
+
+  const ConversionRequest request;
+  AiRewriter rewriter(pipe_name);
+  rewriter.Finish(request, segments);
+  for (int attempt = 0; attempt < 100 && server.requests().empty(); ++attempt) {
+    Sleep(1);
+  }
+  ASSERT_EQ(server.requests().size(), 1);
+  EXPECT_NE(server.requests()[0].find(
+                "\"preceding_text\":\"彼の顔の\""),
+            std::string::npos);
+}
+
+TEST(AiRewriterTest, CommittedFaceContextMatchesNextNoseConversion) {
+  const std::wstring pipe_name =
+      L"\\\\.\\pipe\\yamatana_ai_rewriter_face_nose_commit_test";
+  FakeRankerServer server(pipe_name, "c1", "", 2);
+  ASSERT_TRUE(server.valid());
+  AiRewriter rewriter(pipe_name);
+
+  Segments committed;
+  Segment* committed_segment = committed.add_segment();
+  committed_segment->set_key("かれのかおの");
+  committed_segment->add_candidate()->value = "彼の顔の";
+  const ConversionRequest request;
+  rewriter.Finish(request, committed);
+
+  Segments next;
+  Segment* history = next.add_segment();
+  history->set_segment_type(Segment::HISTORY);
+  history->add_candidate()->value = "彼の顔の";
+  Segment* target = next.add_segment();
+  target->set_key("はな");
+  target->add_candidate()->value = "花";
+  target->add_candidate()->value = "鼻";
+  EXPECT_TRUE(rewriter.Rewrite(request, &next));
+  EXPECT_EQ(next.conversion_segment(0).candidate(0).value, "鼻");
+
+  const auto requests = server.requests();
+  ASSERT_EQ(requests.size(), 2);
+  for (const std::string& payload : requests) {
+    EXPECT_NE(payload.find("\"preceding_text\":\"彼の顔の\""),
+              std::string::npos);
+  }
 }
 
 TEST(AiRewriterTest, PredictorMarkerOnFinalConversionRunsAiRanker) {

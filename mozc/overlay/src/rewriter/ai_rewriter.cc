@@ -415,13 +415,24 @@ std::string CommittedConversionValue(const Segments& segments) {
   return value;
 }
 
+std::string ContextAfterCommit(const ConversionRequest& request,
+                               const Segments& segments) {
+  std::string preceding(request.context().preceding_text());
+  if (preceding.empty()) {
+    // Mozc often supplies the previous commits only as history segments.
+    // Rewrite() uses this same fallback for the next Space request.
+    preceding = segments.history_value();
+  }
+  return AppendIfNotAlreadyAtEnd(std::move(preceding),
+                                 CommittedConversionValue(segments));
+}
+
 std::vector<ai_ranker::BatchSegmentInput> BuildNextContextPrefetchBatch(
     const ConversionRequest& request, const Segments& segments) {
   const std::string committed_value = CommittedConversionValue(segments);
   if (committed_value.empty()) return {};
 
-  std::string preceding(request.context().preceding_text());
-  preceding.append(committed_value);
+  std::string preceding = ContextAfterCommit(request, segments);
   std::string following(request.context().following_text());
 
   // The context-prefetch wire format intentionally reuses the batch schema.
@@ -435,15 +446,7 @@ std::vector<ai_ranker::BatchSegmentInput> BuildNextContextPrefetchBatch(
 
 std::string MakeNextContextPrefetchKey(const ConversionRequest& request,
                                        const Segments& segments) {
-  const std::string committed_value = CommittedConversionValue(segments);
-  std::string key;
-  key.reserve(request.context().preceding_text().size() +
-              request.context().following_text().size() +
-              committed_value.size() + 3);
-  key.append(request.context().preceding_text().data(),
-             request.context().preceding_text().size());
-  key.push_back('\0');
-  key.append(committed_value);
+  std::string key = ContextAfterCommit(request, segments);
   key.push_back('\0');
   key.append(request.context().following_text().data(),
              request.context().following_text().size());

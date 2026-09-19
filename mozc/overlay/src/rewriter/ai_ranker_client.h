@@ -66,8 +66,8 @@ class Client {
                  int timeout_ms,
                  std::vector<BatchSegmentResult>* results) const;
 
-  // Sends only context-encoder work.  The request is write-only from the IME
-  // side so model inference never blocks typing.
+  // Queues only context-encoder work.  Waits for the server's fast receipt
+  // acknowledgment, never for the background model inference.
   bool PrefetchContextBatch(const std::vector<BatchSegmentInput>& segments,
                             int timeout_ms) const;
 

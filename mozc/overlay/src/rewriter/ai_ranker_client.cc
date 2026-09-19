@@ -178,18 +178,6 @@ bool ExchangePayload(const std::wstring& pipe_name, const std::string& payload,
   return ok;
 }
 
-bool SendPayloadNoResponse(const std::wstring& pipe_name,
-                           const std::string& payload, int timeout_ms) {
-  if (timeout_ms <= 0) return false;
-  const ULONGLONG deadline =
-      GetTickCount64() + static_cast<ULONGLONG>(timeout_ms);
-  HANDLE pipe = OpenPipeUntil(pipe_name, deadline);
-  if (pipe == INVALID_HANDLE_VALUE) return false;
-  const bool ok = WriteDeadline(pipe, payload, deadline);
-  CloseHandle(pipe);
-  return ok;
-}
-
 bool ParseResponse(const std::string& response, const std::string& request_id,
                    const std::set<std::string>& allowed,
                    std::vector<RankedCandidate>* output) {
@@ -394,14 +382,12 @@ bool SendPrefetchRequest(const std::wstring& pipe_name,
                          const std::vector<BatchSegmentInput>& segments,
                          const char* inference_trigger, int timeout_ms) {
   if (timeout_ms <= 0) return false;
-  std::string request_id;
-  std::string payload;
-  std::map<std::string, std::set<std::string>> allowed;
-  if (!BuildBatchPayload(segments, inference_trigger, &request_id, &payload,
-                         &allowed)) {
-    return false;
-  }
-  return SendPayloadNoResponse(pipe_name, payload, std::min(timeout_ms, 100));
+  // The server queues prefetch asynchronously and immediately acknowledges
+  // it. Closing a Windows named pipe right after WriteFile can discard the
+  // request before the server's ReadFile runs. Read the acknowledgment first.
+  std::vector<BatchSegmentResult> acknowledged;
+  return SendBatchRequest(pipe_name, segments, inference_trigger,
+                          std::min(timeout_ms, 100), &acknowledged);
 }
 
 }  // namespace
