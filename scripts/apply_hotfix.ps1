@@ -123,9 +123,11 @@ function Copy-HotfixFile {
 Stop-LockingProcesses
 Start-Sleep -Milliseconds 250
 try {
+    Write-Host 'Replacing runtime and Mozc server...' -ForegroundColor DarkCyan
     Copy-HotfixFile -Source $RuntimeSource -Destination $RuntimeTarget
     Copy-HotfixFile -Source $ServerSource -Destination $ServerTarget
 
+    Write-Host 'Running installed runtime self-test...' -ForegroundColor DarkCyan
     $check = Start-Process -FilePath (Join-Path $InstallRoot 'ai_runtime\YamatanaAIIME.exe') -ArgumentList '--check' -Wait -PassThru
     if ($check.ExitCode -ne 0) {
         throw "Installed runtime self-test failed with exit code $($check.ExitCode)"
@@ -136,6 +138,7 @@ try {
     }
 } finally {
     if ($cacheServiceWasRunning) {
+        Write-Host 'Restoring Mozc cache service...' -ForegroundColor DarkCyan
         Start-Service -Name $CacheServiceName -ErrorAction SilentlyContinue
     }
 }
@@ -144,6 +147,9 @@ try {
 # server leaves candidate UI unavailable until the next logon, so explicitly
 # re-run the normal preloader after the replacement completes.
 if (Test-Path -LiteralPath $BrokerTarget) {
-    Start-Process -FilePath $BrokerTarget -ArgumentList '--mode=prelaunch_processes' -WindowStyle Hidden -Wait
+    Write-Host 'Starting Mozc broker preloader...' -ForegroundColor DarkCyan
+    # The broker is a short-lived preloader. Do not wait on it here: waiting
+    # makes a successful install look hung even though the renderer is ready.
+    Start-Process -FilePath $BrokerTarget -ArgumentList '--mode=prelaunch_processes' -WindowStyle Hidden | Out-Null
 }
 Write-Host 'Yamatana AI IME hotfix applied successfully.' -ForegroundColor Green
