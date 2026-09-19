@@ -14,9 +14,11 @@ class FakeBase:
 
     def __init__(self):
         self.cache = {}
+        self.candidate_cache = set()
         self.encoding_batches = []
         self.context_calls = 0
         self.candidate_preloads = []
+        self.wait_calls = []
 
     def _get_context_vectors(self, queries):
         self.context_calls += 1
@@ -27,10 +29,22 @@ class FakeBase:
                 self.cache[query] = np.array([len(query)], dtype=float)
         return np.stack([self.cache[q] for q in queries])
 
+    def _get_cached_context_vectors(self, queries):
+        if any(query not in self.cache for query in queries):
+            return None
+        return np.stack([self.cache[query] for query in queries])
+
+    def _wait_for_prefetch_cache(self, queries, words, **kwargs):
+        self.wait_calls.append((tuple(queries), tuple(words)))
+        return (all(query in self.cache for query in queries)
+                and all(word in self.candidate_cache for word in words if word))
+
     def preload_candidates(self, words):
         self.candidate_preloads.append(tuple(words))
+        self.candidate_cache.update(word for word in words if word)
 
-    def _score_segment_candidates(self, prefix, suffix, reading, candidates, vector):
+    def _score_segment_candidates(self, prefix, suffix, reading, candidates, vector,
+                                  **kwargs):
         values = []
         for candidate in candidates:
             text = candidate['text']
@@ -88,7 +102,9 @@ def example():
 def test_joint_corrects_two_wrong_mozc_tops_in_one_context_batch(monkeypatch):
     mod = load_wrapper(monkeypatch)
     runner = mod.OnnxDualEncoderIMEReranker()
-    result = runner.rank_batch(example())
+    request = example()
+    runner.prefetch_batch(request)
+    result = runner.rank_batch(request)
     assert [s['winner_id'] for s in result['segments']] == ['c1', 'c1']
     assert len(runner.encoding_batches) == 1
     assert set(runner.encoding_batches[0]) == {
@@ -138,4 +154,14 @@ def test_no_context_preserves_mozc_top(monkeypatch):
     request['segments'][1]['preceding_text'] = ''
     result = runner.rank_batch(request)
     assert [s['winner_id'] for s in result['segments']] == ['c0', 'c0']
-    assert len(runner.encoding_batches) == 1
+    assert len(runner.encoding_batches) == 0
+
+
+def test_space_cache_miss_returns_mozc_without_encoding_or_candidate_cache_write(monkeypatch):
+    mod = load_wrapper(monkeypatch)
+    runner = mod.OnnxDualEncoderIMEReranker()
+    result = runner.rank_batch(example())
+    assert [s['winner_id'] for s in result['segments']] == ['c0', 'c0']
+    assert runner.encoding_batches == []
+    assert runner.candidate_preloads == []
+    assert len(runner.wait_calls) == 1

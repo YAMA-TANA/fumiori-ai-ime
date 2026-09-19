@@ -192,6 +192,7 @@ class OnnxDualEncoderIMEReranker:
         self._cache_lock = threading.RLock()
         self._model_lock = threading.Lock()
         self._prefetch_state_lock = threading.Lock()
+        self._prefetch_condition = threading.Condition(self._prefetch_state_lock)
         self._pending_prefetch: Optional[Dict[str, Any]] = None
         self._prefetch_worker: Optional[threading.Thread] = None
 
@@ -254,10 +255,60 @@ class OnnxDualEncoderIMEReranker:
         with self._cache_lock:
             return np.stack([self.context_cache[query] for query in queries], axis=0)
 
+    def _get_cached_context_vectors(
+        self, context_queries: Sequence[str]
+    ) -> Optional[np.ndarray]:
+        """Read context vectors without encoding or mutating the cache.
+
+        This is the Space/explicit-conversion path.  It only reads the cache;
+        the separate wait helper may wait for an already-running prefetch, but
+        it never starts a model forward pass on the named-pipe request thread.
+        """
+        queries = tuple(str(query) for query in context_queries)
+        if not queries:
+            return np.empty((0, 384), dtype=np.float32)
+        with self._cache_lock:
+            if any(query not in self.context_cache for query in queries):
+                return None
+            return np.stack([self.context_cache[query] for query in queries], axis=0)
+
     def _clear_context_cache(self) -> None:
         with self._cache_lock:
             self.context_cache.clear()
             self.context_cache_signature = ()
+
+    def _wait_for_prefetch_cache(
+        self,
+        context_queries: Sequence[str],
+        candidate_words: Sequence[str],
+        *,
+        timeout_seconds: float = 0.35,
+    ) -> bool:
+        """Wait for an already-running prefetch, without doing model work here."""
+        contexts = tuple(str(query) for query in context_queries)
+        words = tuple(str(word) for word in candidate_words if str(word))
+        deadline = time.perf_counter() + max(0.0, float(timeout_seconds))
+
+        while True:
+            with self._cache_lock:
+                ready = (
+                    all(query in self.context_cache for query in contexts)
+                    and all(word in self.candidate_cache for word in words)
+                )
+            if ready:
+                return True
+
+            remaining = deadline - time.perf_counter()
+            if remaining <= 0:
+                return False
+            with self._prefetch_condition:
+                worker_active = (
+                    self._prefetch_worker is not None
+                    and self._prefetch_worker.is_alive()
+                )
+                if not worker_active and self._pending_prefetch is None:
+                    return False
+                self._prefetch_condition.wait(timeout=remaining)
 
     def compute_length_and_mora_penalty(self, word: str, reading: str) -> float:
         """Penalize candidate words whose character length departs from expected reading."""
@@ -351,9 +402,17 @@ class OnnxDualEncoderIMEReranker:
         reading: str,
         candidates: List[Dict[str, Any]],
         ctx_vector: np.ndarray,
-    ) -> List[Dict[str, Any]]:
+        *,
+        allow_encode: bool = True,
+    ) -> Optional[List[Dict[str, Any]]]:
         words = [str(c.get("text", c.get("word", ""))) for c in candidates]
-        self.preload_candidates(words)
+        if allow_encode:
+            self.preload_candidates(words)
+        with self._cache_lock:
+            missing = (words if not allow_encode
+                       else [word for word in words if word])
+            if any(word not in self.candidate_cache for word in missing):
+                return None
 
         cand_vectors = np.stack([self.get_candidate_embedding(w) for w in words], axis=0)  # (K, 384)
         cos_sims = np.dot(cand_vectors, ctx_vector)  # (K,)
@@ -557,7 +616,7 @@ class OnnxDualEncoderIMEReranker:
 
     def prefetch_batch_async(self, request: Dict[str, Any]) -> None:
         """Queue only the newest predictor prefetch without blocking the pipe."""
-        with self._prefetch_state_lock:
+        with self._prefetch_condition:
             self._pending_prefetch = request
             if self._prefetch_worker is not None and self._prefetch_worker.is_alive():
                 return
@@ -574,10 +633,14 @@ class OnnxDualEncoderIMEReranker:
                 request = self._pending_prefetch
                 self._pending_prefetch = None
             if request is None:
-                with self._prefetch_state_lock:
+                with self._prefetch_condition:
                     self._prefetch_worker = None
+                    self._prefetch_condition.notify_all()
                 return
             try:
                 self.prefetch_batch(request)
             except Exception:
                 LOG.exception("Dual-Encoder prefetch failed")
+            finally:
+                with self._prefetch_condition:
+                    self._prefetch_condition.notify_all()

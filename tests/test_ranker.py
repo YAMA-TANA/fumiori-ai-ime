@@ -228,6 +228,38 @@ class RankerTests(unittest.TestCase):
         cache.rank({**cached, "request_id": "cache-3"})
         self.assertEqual(delegate.calls, 2)
 
+    def test_response_cache_does_not_store_noncacheable_batch_fallback(self):
+        class NonCacheableBatchResponse(dict):
+            cacheable = False
+
+        class CountingBatchRanker:
+            def __init__(self):
+                self.calls = 0
+
+            def rank_batch(self, req):
+                self.calls += 1
+                return NonCacheableBatchResponse({
+                    "request_id": req["request_id"],
+                    "segments": [{
+                        "id": "s0", "winner_id": "c0", "confidence": 0.5,
+                    }],
+                })
+
+        req = {
+            "request_id": "batch-cache-1",
+            "inference_trigger": "explicit",
+            "segments": [{
+                "id": "s0", "preceding_text": "文脈", "following_text": "",
+                "read": "ぶんみゃく",
+                "candidates": [{"id": "c0", "text": "文脈", "rank": 1}],
+            }],
+        }
+        delegate = CountingBatchRanker()
+        cache = ResponseCache(delegate)
+        cache.rank_batch(req)
+        cache.rank_batch({**req, "request_id": "batch-cache-2"})
+        self.assertEqual(delegate.calls, 2)
+
     def test_onnx_batch_flattens_all_segment_candidates_into_one_forward(self):
         import numpy as np
         from ranker.onnx_ranker import OnnxRuriReranker

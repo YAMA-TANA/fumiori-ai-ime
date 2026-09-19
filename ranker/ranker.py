@@ -362,6 +362,8 @@ class ResponseCache:
             self._entries.pop(key, None)
 
         response = compute(request)
+        if getattr(response, "cacheable", True) is False:
+            return response
         if response is not None:
             self._entries[key] = (time.perf_counter(), deepcopy(response))
             self._entries.move_to_end(key)

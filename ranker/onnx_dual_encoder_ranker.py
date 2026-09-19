@@ -102,6 +102,12 @@ def _softmax_confidence(values: Sequence[float]) -> float:
     return max(exps) / sum(exps)
 
 
+class _NonCacheableBatchResponse(dict):
+    """Marker for a fallback that must be retried after prefetch completes."""
+
+    cacheable = False
+
+
 class OnnxDualEncoderIMEReranker(_BaseRanker):
     """Jointly select existing Mozc candidates without re-encoding contexts.
 
@@ -120,6 +126,22 @@ class OnnxDualEncoderIMEReranker(_BaseRanker):
         with self._joint_context_lock:
             return self._get_context_vectors(queries)
 
+    @staticmethod
+    def _baseline_batch_response(request: Dict[str, Any]) -> Dict[str, Any]:
+        """Return Mozc order without starting any model work on Space."""
+        output = []
+        for index, segment in enumerate(request.get("segments", [])):
+            candidates = segment.get("candidates", [])
+            output.append({
+                "id": str(segment.get("id", f"s{index}")),
+                "winner_id": str(candidates[0]["id"]) if candidates else "",
+                "confidence": 0.5,
+            })
+        return _NonCacheableBatchResponse({
+            "request_id": request.get("request_id", "batch"),
+            "segments": output,
+        })
+
     def rank_batch(self, request: Dict[str, Any]) -> Dict[str, Any]:
         request_id = request.get("request_id", "batch")
         segments = request.get("segments", [])
@@ -127,16 +149,25 @@ class OnnxDualEncoderIMEReranker(_BaseRanker):
             return {"request_id": request_id, "segments": []}
 
         rows, queries = _context_plan(segments, self.context_chars)
-        # One call; _get_context_vectors encodes only cache misses in ONE ONNX
-        # batch.  Do not call it again while scoring paths or retrying choices.
-        vectors = self._joint_context_vectors(queries)
-        by_query = dict(zip(queries, vectors))
-        self.preload_candidates([
+        words = [
             _candidate_text(candidate)
             for segment in segments
             for candidate in segment.get("candidates", [])
-            if _candidate_text(candidate)
-        ])
+        ]
+        # Space is read-only: never encode a context on the pipe request
+        # thread.  If the realtime prefetch worker is still encoding, wait for
+        # that worker rather than starting a second model call here.
+        with self._joint_context_lock:
+            vectors = self._get_cached_context_vectors(queries)
+        cache_ready = self._wait_for_prefetch_cache(queries, words)
+        if not cache_ready:
+            return self._baseline_batch_response(request)
+        if vectors is None:
+            with self._joint_context_lock:
+                vectors = self._get_cached_context_vectors(queries)
+        if vectors is None:
+            return self._baseline_batch_response(request)
+        by_query = dict(zip(queries, vectors))
 
         # scores[i][previous_candidate][current_candidate].  The first segment
         # has one dummy previous state.  No model inference in these loops.
@@ -155,7 +186,11 @@ class OnnxDualEncoderIMEReranker(_BaseRanker):
                 scored = self._score_segment_candidates(
                     prefix, str(segment.get("following_text", "")),
                     str(segment.get("read", "")), candidates, by_query[prefix],
+                    allow_encode=False,
                 )
+                if scored is None:
+                    alternatives.append([-float(j) for j in range(len(candidates))])
+                    continue
                 by_id = {str(item["id"]): float(item["final_score"])
                          for item in scored}
                 alternatives.append([
