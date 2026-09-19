@@ -64,6 +64,14 @@ function Copy-HotfixFile {
             Write-Host "Already current: $Destination"
             return
         }
+
+        # The MSI marks Mozc binaries read-only. Clear that attribute before
+        # probing/replacing the destination; otherwise even an elevated copy
+        # fails with AccessDenied when no process is holding the file.
+        $destinationItem = Get-Item -LiteralPath $Destination -Force
+        if ($destinationItem.IsReadOnly) {
+            $destinationItem.IsReadOnly = $false
+        }
     }
 
     $attempts = 40
