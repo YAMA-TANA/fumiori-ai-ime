@@ -1,13 +1,13 @@
-# Yamatana AI IME (MOZC Ver)
+# Fumiori AI IME
 
-ローカルAIでMozcの変換候補を文脈に合わせて並べ替えるWindows日本語IMEです。AIは候補文字列を生成せず、Mozcが提示した候補の順番だけを変更します。
+ローカルAIでMozcの変換候補を文脈に合わせて並べ替えるWindows日本語IMEです。標準エンジンはDual-Encoder 70Mで、候補文字列を生成せず、Mozcが提示した候補の順番だけを変更します。
 
 ## インストール後
 
-1. Windowsへ `Yamatana AI IME (MOZC Ver)` が登録されます。
-2. 通知領域へYamatanaのトレイアイコンが起動します。
+1. Windowsへ `Fumiori AI IME` が登録されます。
+2. 通知領域へFumioriのトレイアイコンが起動します。
 3. 初回だけ「まず、ここだけ」という短い案内が表示されます。
-4. AIは既定でONになり、サインイン時にローカルモデルを読み込みます。
+4. AIは既定でONになり、サインイン時にDual-Encoder 70Mローカルモデルを読み込みます。
 5. AIが不要な場合は、トレイアイコンを右クリックして「AIを使用する (ON)」を選びます。
 
 ### トレイアイコンが見つからない場合
