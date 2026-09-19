@@ -6,6 +6,7 @@ $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $InstallRoot = 'C:\Program Files (x86)\Yamatana AI IME'
 $RuntimeTarget = Join-Path $InstallRoot 'ai_runtime\YamatanaAIIME.exe'
 $ServerTarget = Join-Path $InstallRoot 'mozc_server.exe'
+$BrokerTarget = Join-Path $InstallRoot 'mozc_broker.exe'
 $CacheServiceName = 'MozcCacheService'
 $RuntimeSource = Join-Path $Root 'hotfix\YamatanaAIIME.exe'
 $ServerSource = Join-Path $Root 'hotfix\mozc_server.exe'
@@ -137,5 +138,12 @@ try {
     if ($cacheServiceWasRunning) {
         Start-Service -Name $CacheServiceName -ErrorAction SilentlyContinue
     }
+}
+
+# The broker owns Mozc's renderer/prelaunch lifecycle. Restarting only the
+# server leaves candidate UI unavailable until the next logon, so explicitly
+# re-run the normal preloader after the replacement completes.
+if (Test-Path -LiteralPath $BrokerTarget) {
+    Start-Process -FilePath $BrokerTarget -ArgumentList '--mode=prelaunch_processes' -WindowStyle Hidden -Wait
 }
 Write-Host 'Yamatana AI IME hotfix applied successfully.' -ForegroundColor Green
