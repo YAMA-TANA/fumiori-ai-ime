@@ -3,272 +3,119 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Yamatana AI IMEは、Mozcの変換候補を70M級のローカルAIで文脈に合わせて並べ替えるWindows向け日本語IMEです。CPU INT8 67.8MB。入力内容は外部へ送信しません。">
+  <meta name="description" content="Fumiori AI IMEはMozcの変換候補をDual-Encoder 70MのローカルAIで文脈に合わせて並べ替えるWindows向け日本語IME。v2.1.1-betaのモデル同梱MSIを公開中。入力内容はPC外へ送信しません。">
   <meta name="theme-color" content="#101522">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="Yamatana AI IME — 文脈を見て、変換候補を選び直す">
-  <meta property="og:description" content="Mozc × 70MローカルAI。距離なら「測った」、時間なら「計った」。入力内容はPCの外へ送りません。">
-  <title>Yamatana AI IME — 文脈を見て、変換候補を選び直す</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23e9cf45'/%3E%3Cpath d='M14 14h10l8 15 8-15h10L37 38v12H27V38z' fill='%23131a29'/%3E%3C/svg%3E">
+  <meta property="og:title" content="Fumiori AI IME — 文脈を見て、変換候補を選び直す">
+  <meta property="og:description" content="Mozc × Dual-Encoder 70M。ローカル推論、最大10候補の再順位付け。Windows向けv2.1.1-betaを公開中。">
+  <title>Fumiori AI IME — 文脈を見て、変換候補を選び直す</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23e9cf45'/%3E%3Cpath d='M19 14h29v9H29v8h16v9H29v11H19z' fill='%23131a29'/%3E%3C/svg%3E">
   <style>html{background:#0d1220}body{margin:0;background:#f6f3e8;color:#172033;font-family:"Yu Gothic UI","Hiragino Sans","Noto Sans JP",system-ui,sans-serif}.hero{background:#0d1220;color:#fff}.site-header{min-height:72px}.shell{width:min(1180px,calc(100% - 40px));margin:auto}</style>
-  <link rel="stylesheet" href="/fumiori-ai-ime/styles.css?v=20260906-3">
-  <script defer src="/fumiori-ai-ime/app.js?v=20260906-3"></script>
+  <link rel="stylesheet" href="/fumiori-ai-ime/styles.css?v=20260920-1">
+  <script defer src="/fumiori-ai-ime/app.js?v=20260920-1"></script>
   <link rel="canonical" href="https://yama-tana.github.io/fumiori-ai-ime/">
   <meta property="og:url" content="https://yama-tana.github.io/fumiori-ai-ime/">
 </head>
 <body>
   <a class="skip-link" href="#main">本文へ移動</a>
-
   <header class="site-header">
     <div class="shell nav">
-      <a class="brand" href="#top" aria-label="Yamatana AI IME トップ">
-        <span class="brand-mark" aria-hidden="true">Y</span>
-        <span class="brand-copy"><strong>Yamatana AI IME</strong><span>MOZC Ver · Public Beta</span></span>
+      <a class="brand" href="#top" aria-label="Fumiori AI IME トップ">
+        <span class="brand-mark" aria-hidden="true">F</span>
+        <span class="brand-copy"><strong>Fumiori AI IME</strong><span>Mozc-based · Public Beta</span></span>
       </a>
       <nav class="nav-links" aria-label="メインナビゲーション">
-        <a href="#demo">変換デモ</a>
-        <a href="#examples">実例集</a>
-        <a href="#performance">性能</a>
-        <a href="#design">仕組み</a>
-        <a href="#privacy">プライバシー</a>
+        <a href="#demo">変換デモ</a><a href="#examples">実例集</a><a href="#performance">特徴</a><a href="#design">仕組み</a><a href="#privacy">プライバシー</a><a href="#start">ダウンロード</a>
         <a class="nav-github" href="https://github.com/YAMA-TANA/fumiori-ai-ime">GitHub ↗</a>
       </nav>
     </div>
   </header>
-
   <main id="main">
     <section class="hero" id="top">
-      <div class="hero-glow glow-a" aria-hidden="true"></div>
-      <div class="hero-glow glow-b" aria-hidden="true"></div>
-      <div class="hero-gridlines" aria-hidden="true"></div>
+      <div class="hero-glow glow-a" aria-hidden="true"></div><div class="hero-glow glow-b" aria-hidden="true"></div><div class="hero-gridlines" aria-hidden="true"></div>
       <div class="shell hero-grid">
         <div class="hero-copy reveal">
-          <div class="eyebrow"><span class="live-dot"></span> Windows 10 / 11 · v2.1.1-beta</div>
+          <div class="eyebrow"><span class="live-dot"></span> Windows 10 / 11 · v2.1.1-beta · 未署名</div>
           <h1>変換候補を、<br><span>文脈でもう一度考える。</span></h1>
-          <p class="hero-lead">たとえば「はかった」。距離なら「測った」、時間なら「計った」、重さなら「量った」。Yamatana AI IMEは、Mozcが出した候補を<strong>70M級のローカルAI</strong>で並べ直します。</p>
+          <p class="hero-lead">たとえば「はかった」。距離なら「測った」、時間なら「計った」、重さなら「量った」。<strong>Fumiori AI IME</strong>はMozcが作った候補を<strong>Dual-Encoder 70MのローカルAI</strong>で並べ直します。</p>
           <div class="hero-actions">
-            <a class="button button-primary" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Fumiori-AI-IME-New-PC-Setup-v2.1.1-beta.zip">新規PC用セットアップを入手 <span aria-hidden="true">→</span></a>
+            <a class="button button-primary" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Yamatana-AI-IME-MOZC-Ver-2.1.1-beta-x64.msi">フルMSIをダウンロード <span aria-hidden="true">→</span></a>
             <a class="button button-secondary" href="#examples">変換例をもっと見る</a>
           </div>
-          <div class="hero-trust">
-            <span><b>67.8 MB</b> CPU INT8</span>
-            <span><b>70.1M</b> parameters</span>
-            <span><b>Local</b> inference</span>
-          </div>
+          <div class="hero-trust"><span><b>70M</b> Dual-Encoder</span><span><b>最大10候補</b> 再順位付け</span><span><b>Local</b> inference</span></div>
         </div>
-
         <div class="hero-product reveal" id="demo">
           <div class="product-halo" aria-hidden="true"></div>
           <div class="ime-window">
-            <div class="window-topbar">
-              <div class="window-identity"><span class="mini-logo">Y</span><div><strong>Yamatana AI IME</strong><small>context reranking</small></div></div>
-              <div class="status-pill"><span></span> AI ON</div>
-            </div>
+            <div class="window-topbar"><div class="window-identity"><span class="mini-logo">F</span><div><strong>Fumiori AI IME</strong><small>context reranking</small></div></div><div class="status-pill"><span></span> AI ON</div></div>
             <div class="ime-content">
-              <div class="demo-tabs" role="tablist" aria-label="変換例">
-                <button class="demo-tab active" data-example="distance" role="tab" aria-selected="true">距離</button>
-                <button class="demo-tab" data-example="time" role="tab" aria-selected="false">時間</button>
-                <button class="demo-tab" data-example="weight" role="tab" aria-selected="false">重さ</button>
-                <button class="demo-tab" data-example="improve" role="tab" aria-selected="false">改善</button>
-                <button class="demo-tab" data-example="friend" role="tab" aria-selected="false">旧友</button>
-                <button class="demo-tab" data-example="accident" role="tab" aria-selected="false">事故</button>
-                <button class="demo-tab" data-example="law" role="tab" aria-selected="false">法律</button>
-                <button class="demo-tab" data-example="gpu" role="tab" aria-selected="false">GPU</button>
-              </div>
-              <div class="sentence-card">
-                <span class="sentence-label">入力中の文章</span>
-                <p id="demoSentence">レーザーで壁までの距離を<span>はかった</span>。</p>
-              </div>
-              <div class="candidate-caption"><span>変換候補</span><small>文脈を含めて一括評価</small></div>
-              <div class="candidate-stack" id="candidateStack">
-                <div class="candidate selected"><span class="rank">1</span><strong>測った</strong><span class="match">文脈に一致</span></div>
-                <div class="candidate"><span class="rank">2</span><span>計った</span></div>
-                <div class="candidate"><span class="rank">3</span><span>量った</span></div>
-                <div class="candidate"><span class="rank">4</span><span>図った</span></div>
-              </div>
-              <div class="inference-line"><span class="shield">◆</span><strong>入力内容はPC内で処理</strong><span>ONNX Runtime · Ruri 70M</span></div>
+              <div class="demo-tabs" role="tablist" aria-label="変換例"><button class="demo-tab active" data-example="distance" role="tab" aria-selected="true">距離</button><button class="demo-tab" data-example="time" role="tab" aria-selected="false">時間</button><button class="demo-tab" data-example="weight" role="tab" aria-selected="false">重さ</button><button class="demo-tab" data-example="improve" role="tab" aria-selected="false">改善</button><button class="demo-tab" data-example="friend" role="tab" aria-selected="false">旧友</button><button class="demo-tab" data-example="accident" role="tab" aria-selected="false">事故</button><button class="demo-tab" data-example="law" role="tab" aria-selected="false">法律</button><button class="demo-tab" data-example="gpu" role="tab" aria-selected="false">GPU</button></div>
+              <div class="sentence-card"><span class="sentence-label">入力中の文章</span><p id="demoSentence">レーザーで壁までの距離を<span>はかった</span>。</p></div>
+              <div class="candidate-caption"><span>変換候補</span><small>文脈と候補のベクトルを比較</small></div>
+              <div class="candidate-stack" id="candidateStack"><div class="candidate selected"><span class="rank">1</span><strong>測った</strong><span class="match">文脈に一致</span></div><div class="candidate"><span class="rank">2</span><span>計った</span></div><div class="candidate"><span class="rank">3</span><span>量った</span></div><div class="candidate"><span class="rank">4</span><span>図った</span></div></div>
+              <div class="inference-line"><span class="shield">◆</span><strong>入力内容はPC内で処理</strong><span>ONNX Runtime · Dual-Encoder</span></div>
             </div>
           </div>
-          <div class="metric-float metric-float-a"><small>CPU model</small><strong>67.8 MB</strong><span>−78.7%</span></div>
-          <div class="metric-float metric-float-b"><small>ranking</small><strong>1 batch</strong><span>all candidates</span></div>
+          <div class="metric-float metric-float-a"><small>reranker</small><strong>70M</strong><span>Dual-Encoder</span></div>
+          <div class="metric-float metric-float-b"><small>candidate ranking</small><strong>最大10件</strong><span>inner product</span></div>
         </div>
       </div>
-      <div class="shell hero-footnote">Mozcのかな漢字変換を置き換えるのではなく、候補順位をAIで補正する設計です。</div>
+      <div class="shell hero-footnote">Mozcのかな漢字変換を置き換えるのではなく、候補順位をAIで補正する設計です。表示デモは仕組みを説明する例で、すべての入力結果を保証するものではありません。</div>
     </section>
-
-    <section class="proof-strip">
-      <div class="shell proof-grid">
-        <div><small>Student model</small><strong>70.1M</strong><span>teacherの22.3%</span></div>
-        <div><small>CPU ONNX</small><strong>67.76 MB</strong><span>317.66MB → 67.76MB</span></div>
-        <div><small>GPU ONNX</small><strong>134.11 MB</strong><span>DirectML FP16</span></div>
-        <div><small>Distillation data</small><strong>38,355</strong><span>contextual pairs</span></div>
-      </div>
-    </section>
-
+    <section class="proof-strip"><div class="shell proof-grid"><div><small>Standard engine</small><strong>Dual-Encoder</strong><span>70M local model</span></div><div><small>Candidate ranking</small><strong>最大10件</strong><span>Mozcの候補を利用</span></div><div><small>Candidate cache</small><strong>最大50万語</strong><span>固定候補ベクトル</span></div><div><small>Latest beta</small><strong>v2.1.1</strong><span>Windows x64 フルMSI</span></div></div></section>
     <section class="section intro-section">
-      <div class="shell split-heading reveal">
-        <div><span class="kicker">WHY RERANKING</span><h2>日本語入力に必要なのは、<br>文章を作るAIとは限りません。</h2></div>
-        <div class="split-copy"><p>IMEでは、候補そのものはMozcがかなり上手に作れます。困るのは「どれを一番上に出すか」です。そこでYamatana AI IMEは、生成ではなく<strong>候補の順位付け</strong>にAIを使います。</p><p>この役割に絞ることで、モデルを70Mまで小さくしても、文脈依存の使い分けに集中できます。</p></div>
-      </div>
-      <div class="shell journey reveal">
-        <div class="journey-node"><span>01</span><strong>かな入力</strong><small>はかった</small></div>
-        <div class="journey-arrow">→</div>
-        <div class="journey-node"><span>02</span><strong>Mozc</strong><small>候補を生成</small></div>
-        <div class="journey-arrow">→</div>
-        <div class="journey-node highlighted"><span>03</span><strong>70M AI</strong><small>全文脈で再評価</small></div>
-        <div class="journey-arrow">→</div>
-        <div class="journey-node"><span>04</span><strong>確定</strong><small>測った</small></div>
-      </div>
+      <div class="shell split-heading reveal"><div><span class="kicker">WHY RERANKING</span><h2>日本語入力に必要なのは、<br>文章を作るAIとは限りません。</h2></div><div class="split-copy"><p>Mozcの変換候補を活かしながら、文章に合う順番へ並べ直します。文章や未収録の単語をAIが自由生成する方式ではありません。</p><p>標準エンジンのDual-Encoderは文脈と候補を別々にベクトル化するため、文脈を候補ごとに繰り返し処理せず、候補側の計算結果も再利用できます。</p></div></div>
+      <div class="shell journey reveal"><div class="journey-node"><span>01</span><strong>かな入力</strong><small>はかった</small></div><div class="journey-arrow">→</div><div class="journey-node"><span>02</span><strong>Mozc</strong><small>候補を生成</small></div><div class="journey-arrow">→</div><div class="journey-node highlighted"><span>03</span><strong>Dual-Encoder</strong><small>文脈と候補を比較</small></div><div class="journey-arrow">→</div><div class="journey-node"><span>04</span><strong>変換候補</strong><small>測った</small></div></div>
     </section>
-
-    <section class="section demo-gallery-section" id="examples">
-      <div class="shell">
-        <div class="section-heading centered reveal">
-          <span class="kicker">CONVERSION SHOWCASE</span>
-          <h2>一つの読みでも、文脈が変われば答えも変わる。</h2>
-          <p>同じ読みを、文章の意味に合わせて選び分ける例です。カードを押すと上のIMEデモにも反映できます。</p>
-        </div>
-        <div class="demo-gallery reveal">
-          <button class="demo-case" data-example="distance"><span class="case-reading">はかった</span><p>レーザーで壁までの距離を<strong>測った</strong>。</p><small>計った / 量った / 図った</small></button>
-          <button class="demo-case" data-example="time"><span class="case-reading">はかった</span><p>駅まで何分かかるか時間を<strong>計った</strong>。</p><small>測った / 量った / 図った</small></button>
-          <button class="demo-case" data-example="weight"><span class="case-reading">はかった</span><p>発送前に荷物の重さを<strong>量った</strong>。</p><small>測った / 計った / 図った</small></button>
-          <button class="demo-case" data-example="improve"><span class="case-reading">はかった</span><p>工程を見直し、効率化を<strong>図った</strong>。</p><small>測った / 計った / 量った</small></button>
-
-          <button class="demo-case" data-example="friend"><span class="case-reading">あって</span><p>駅前で旧友に<strong>会って</strong>話し込んだ。</p><small>遭って / 合って</small></button>
-          <button class="demo-case" data-example="accident"><span class="case-reading">あって</span><p>帰宅途中に事故に<strong>遭って</strong>しまった。</p><small>会って / 合って</small></button>
-          <button class="demo-case" data-example="match"><span class="case-reading">あって</span><p>二人の計算結果は<strong>合って</strong>いる。</p><small>会って / 遭って</small></button>
-
-          <button class="demo-case" data-example="law"><span class="case-reading">おかした</span><p>会社は重大な法令違反を<strong>犯した</strong>。</p><small>冒した / 侵した</small></button>
-          <button class="demo-case" data-example="risk"><span class="case-reading">おかして</span><p>危険を<strong>冒して</strong>救助に向かった。</p><small>犯して / 侵して</small></button>
-          <button class="demo-case" data-example="territory"><span class="case-reading">おかした</span><p>他国の領海を<strong>侵した</strong>。</p><small>犯した / 冒した</small></button>
-
-          <button class="demo-case" data-example="share"><span class="case-reading">しめて</span><p>国内売上が全体の半分を<strong>占めて</strong>いる。</p><small>締めて / 閉めて</small></button>
-          <button class="demo-case" data-example="tie"><span class="case-reading">しめて</span><p>出発前にネクタイを<strong>締めて</strong>鏡を見た。</p><small>占めて / 閉めて</small></button>
-          <button class="demo-case" data-example="door"><span class="case-reading">しめて</span><p>冷房中なのでドアを<strong>閉めて</strong>ください。</p><small>締めて / 占めて</small></button>
-
-          <button class="demo-case" data-example="light"><span class="case-reading">つけて</span><p>暗くなったので明かりを<strong>点けて</strong>ください。</p><small>付けて / 着けて</small></button>
-          <button class="demo-case" data-example="mask"><span class="case-reading">つけて</span><p>診察室ではマスクを<strong>着けて</strong>ください。</p><small>付けて / 点けて</small></button>
-          <button class="demo-case" data-example="tag"><span class="case-reading">つけて</span><p>受付で胸に名札を<strong>付けて</strong>もらった。</p><small>着けて / 点けて</small></button>
-
-          <button class="demo-case" data-example="photo"><span class="case-reading">とった</span><p>夕焼けの写真を<strong>撮った</strong>。</p><small>取った / 捕った</small></button>
-          <button class="demo-case" data-example="license"><span class="case-reading">とった</span><p>大学在学中に資格を<strong>取った</strong>。</p><small>撮った / 捕った</small></button>
-          <button class="demo-case" data-example="fish"><span class="case-reading">とった</span><p>川で大きな魚を<strong>捕った</strong>。</p><small>取った / 撮った</small></button>
-
-          <button class="demo-case" data-example="gpu"><span class="case-reading">すいろん</span><p>DirectMLでモデルの<strong>推論</strong>を高速化した。</p><small>水論 / 推論</small></button>
-          <button class="demo-case" data-example="quant"><span class="case-reading">りょうしか</span><p>モデルをINT8に<strong>量子化</strong>して軽くした。</p><small>漁師か / 量子化</small></button>
-        </div>
+    <section class="section demo-gallery-section" id="examples"><div class="shell">
+      <div class="section-heading centered reveal"><span class="kicker">CONVERSION SHOWCASE</span><h2>一つの読みでも、文脈が変われば答えも変わる。</h2><p>同音異義語・異字同訓の例です。カードを押すと上のデモにも反映できます。</p></div>
+      <div class="demo-gallery reveal">
+        <button class="demo-case" data-example="distance"><span class="case-reading">はかった</span><p>レーザーで壁までの距離を<strong>測った</strong>。</p><small>計った / 量った / 図った</small></button>
+        <button class="demo-case" data-example="time"><span class="case-reading">はかった</span><p>駅まで何分かかるか時間を<strong>計った</strong>。</p><small>測った / 量った / 図った</small></button>
+        <button class="demo-case" data-example="weight"><span class="case-reading">はかった</span><p>発送前に荷物の重さを<strong>量った</strong>。</p><small>測った / 計った / 図った</small></button>
+        <button class="demo-case" data-example="improve"><span class="case-reading">はかった</span><p>工程を見直し、効率化を<strong>図った</strong>。</p><small>測った / 計った / 量った</small></button>
+        <button class="demo-case" data-example="friend"><span class="case-reading">あって</span><p>駅前で旧友に<strong>会って</strong>話し込んだ。</p><small>遭って / 合って</small></button>
+        <button class="demo-case" data-example="accident"><span class="case-reading">あって</span><p>帰宅途中に事故に<strong>遭って</strong>しまった。</p><small>会って / 合って</small></button>
+        <button class="demo-case" data-example="match"><span class="case-reading">あって</span><p>二人の計算結果は<strong>合って</strong>いる。</p><small>会って / 遭って</small></button>
+        <button class="demo-case" data-example="law"><span class="case-reading">おかした</span><p>会社は重大な法令違反を<strong>犯した</strong>。</p><small>冒した / 侵した</small></button>
+        <button class="demo-case" data-example="risk"><span class="case-reading">おかして</span><p>危険を<strong>冒して</strong>救助に向かった。</p><small>犯して / 侵して</small></button>
+        <button class="demo-case" data-example="territory"><span class="case-reading">おかした</span><p>他国の領海を<strong>侵した</strong>。</p><small>犯した / 冒した</small></button>
+        <button class="demo-case" data-example="share"><span class="case-reading">しめて</span><p>国内売上が全体の半分を<strong>占めて</strong>いる。</p><small>締めて / 閉めて</small></button>
+        <button class="demo-case" data-example="tie"><span class="case-reading">しめて</span><p>出発前にネクタイを<strong>締めて</strong>鏡を見た。</p><small>占めて / 閉めて</small></button>
+        <button class="demo-case" data-example="door"><span class="case-reading">しめて</span><p>冷房中なのでドアを<strong>閉めて</strong>ください。</p><small>締めて / 占めて</small></button>
+        <button class="demo-case" data-example="light"><span class="case-reading">つけて</span><p>暗くなったので明かりを<strong>点けて</strong>ください。</p><small>付けて / 着けて</small></button>
+        <button class="demo-case" data-example="mask"><span class="case-reading">つけて</span><p>診察室ではマスクを<strong>着けて</strong>ください。</p><small>付けて / 点けて</small></button>
+        <button class="demo-case" data-example="tag"><span class="case-reading">つけて</span><p>受付で胸に名札を<strong>付けて</strong>もらった。</p><small>着けて / 点けて</small></button>
+        <button class="demo-case" data-example="photo"><span class="case-reading">とった</span><p>夕焼けの写真を<strong>撮った</strong>。</p><small>取った / 捕った</small></button>
+        <button class="demo-case" data-example="license"><span class="case-reading">とった</span><p>大学在学中に資格を<strong>取った</strong>。</p><small>撮った / 捕った</small></button>
+        <button class="demo-case" data-example="fish"><span class="case-reading">とった</span><p>川で大きな魚を<strong>捕った</strong>。</p><small>取った / 撮った</small></button>
+        <button class="demo-case" data-example="gpu"><span class="case-reading">すいろん</span><p>DirectMLでモデルの<strong>推論</strong>を高速化した。</p><small>水論 / 推論</small></button>
+        <button class="demo-case" data-example="quant"><span class="case-reading">りょうしか</span><p>モデルをINT8に<strong>量子化</strong>して軽くした。</p><small>漁師か / 量子化</small></button>
       </div>
-    </section>
-
-    <section class="section performance-section" id="performance">
-      <div class="performance-glow" aria-hidden="true"></div>
-      <div class="shell">
-        <div class="section-heading on-dark reveal">
-          <span class="kicker">MEASURED PERFORMANCE</span>
-          <h2>310Mの判断を、<br>70Mへ持っていく。</h2>
-          <p>初期版の310M teacherは強い一方で、配布するIMEとしては重めでした。v2ではIME向けteacherから70M studentへ知識蒸留し、CPU / GPU向けにそれぞれ量子化・変換しています。</p>
-        </div>
-
-        <div class="performance-grid reveal">
-          <article class="perf-card perf-card-main">
-            <div class="perf-card-head"><span>MODEL SIZE</span><strong>78.7% smaller</strong></div>
-            <div class="size-comparison">
-              <div class="size-item"><div class="size-label"><span>310M Teacher</span><strong>317.66 MB</strong></div><div class="size-track"><span class="teacher-bar"></span></div><small>CPU INT8</small></div>
-              <div class="size-item"><div class="size-label"><span>70M Student</span><strong>67.76 MB</strong></div><div class="size-track"><span class="student-bar"></span></div><small>CPU Dynamic INT8</small></div>
-            </div>
-            <div class="big-number"><strong>4.5×</strong><span>パラメータ規模を縮小</span></div>
-          </article>
-
-          <article class="perf-card score-card">
-            <div class="perf-card-head"><span>HARD HOLD-OUT · CPU INT8</span><strong>120 questions</strong></div>
-            <div class="score-ring" style="--score:90.83"><div><strong>90.83<small>%</small></strong><span>70M Student</span></div></div>
-            <div class="score-compare"><span>310M Teacher</span><strong>91.67%</strong></div>
-            <p>文脈での使い分けが難しい問題だけを集めた高難度セットで評価。</p>
-          </article>
-
-          <article class="perf-card score-card gpu-card">
-            <div class="perf-card-head"><span>HARD HOLD-OUT · GPU FP16</span><strong>DirectML</strong></div>
-            <div class="score-ring" style="--score:91.67"><div><strong>91.67<small>%</small></strong><span>70M Student</span></div></div>
-            <div class="score-compare"><span>310M Teacher</span><strong>95.83%</strong></div>
-            <p>DirectML対応GPUではFP16モデルを自動選択できます。</p>
-          </article>
-        </div>
-
-        <div class="benchmark-disclaimer reveal">
-          <div class="disclaimer-mark">i</div>
-          <p><strong>この90%台は「一般文章すべての正答率」ではありません。</strong> 学習文との文章一致・クエリ重複がないことを確認したうえで、Mozcの単純変換が苦手な文脈依存問題を120問選んだストレステストです。評価条件を隠さず公開しています。</p>
-          <a href="/fumiori-ai-ime/DISTILLATION_QUANTIZATION_AND_GPU_INFERENCE_JA.md">評価条件を読む →</a>
-        </div>
+    </div></section>
+    <section class="section performance-section" id="performance"><div class="performance-glow" aria-hidden="true"></div><div class="shell">
+      <div class="section-heading on-dark reveal"><span class="kicker">CURRENT BETA · v2.1.1</span><h2>文脈は一度、<br>候補は再利用。</h2><p>従来のCross-Encoderでは候補ごとに文脈も含めて推論していました。現在の標準エンジンはDual-Encoder 70M。文脈と候補を分離し、候補側のベクトル先読み・キャッシュで変換時の計算を減らします。</p></div>
+      <div class="performance-grid reveal">
+        <article class="perf-card perf-card-main"><div class="perf-card-head"><span>STANDARD RERANKER</span><strong>Dual-Encoder</strong></div><div class="size-comparison"><div class="size-item"><div class="size-label"><span>文脈</span><strong>一度ベクトル化</strong></div><div class="size-track"><span class="teacher-bar"></span></div><small>変換候補と比較</small></div><div class="size-item"><div class="size-label"><span>候補</span><strong>事前計算・再利用</strong></div><div class="size-track"><span class="student-bar"></span></div><small>内積で再順位付け</small></div></div><div class="big-number"><strong>70M</strong><span>標準モデルの規模</span></div></article>
+        <article class="perf-card score-card"><div class="perf-card-head"><span>MOZC CANDIDATES</span><strong>v2.1.1-beta</strong></div><div class="score-ring" style="--score:100"><div><strong>10<small>件</small></strong><span>最大候補数</span></div></div><div class="score-compare"><span>AI停止・失敗時</span><strong>Mozcへ</strong></div><p>候補を新たに生成せず、Mozc候補の順序を調整します。</p></article>
+        <article class="perf-card score-card gpu-card"><div class="perf-card-head"><span>VECTOR CACHE</span><strong>SQLite</strong></div><div class="score-ring" style="--score:100"><div><strong>50<small>万語</small></strong><span>固定候補の上限</span></div></div><div class="score-compare"><span>入力内容とAI推論</span><strong>ローカル</strong></div><p>固定候補ベクトルをバックグラウンドで保持し、次回以降に活用します。</p></article>
       </div>
-    </section>
-
-    <section class="section domains-section">
-      <div class="shell domains-layout">
-        <div class="section-heading reveal">
-          <span class="kicker">TRAINED FOR CONTEXT</span>
-          <h2>「同じ読み、違う意味」を重点的に。</h2>
-          <p>蒸留データは38,355件。一般的なIME文脈に加えて、文化庁の異字同訓動詞やIT・推論実装の専門文脈を追加しています。</p>
-          <div class="domain-pills"><span>異字同訓</span><span>IT・推論</span><span>医療</span><span>法律</span><span>ビジネス</span><span>学術</span></div>
-        </div>
-        <div class="examples-panel reveal">
-          <div class="example-row"><span class="example-reading">あう</span><div><b>事故に遭う</b><span>旧友と会う</span><span>計算が合う</span></div></div>
-          <div class="example-row"><span class="example-reading">おかす</span><div><b>法を犯す</b><span>危険を冒す</span><span>聖域を侵す</span></div></div>
-          <div class="example-row"><span class="example-reading">しめる</span><div><b>過半数を占める</b><span>ネクタイを締める</span><span>ドアを閉める</span></div></div>
-          <div class="example-row"><span class="example-reading">すいろん</span><div><b>GPU推論</b><span>バッチ推論</span><span>エッジ推論</span></div></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section architecture-section" id="design">
-      <div class="shell">
-        <div class="section-heading centered reveal"><span class="kicker">BUILT AS AN IME</span><h2>デモではなく、Windowsで毎日使うための設計。</h2><p>精度だけを追うのではなく、起動・停止、CPU/GPU切替、障害時のフォールバックまで含めてIMEとしてまとめています。</p></div>
-        <div class="architecture-grid reveal">
-          <article><div class="arch-number">01</div><h3>全候補を1バッチ</h3><p>Mozcの候補を一つずつ推論せず、候補リスト全体をまとめて1回のONNX Runtime実行へ渡します。</p><span class="arch-tag">FULL-CANDIDATE BATCH</span></article>
-          <article><div class="arch-number">02</div><h3>DirectMLを自動選択</h3><p>対応環境ではGPU FP16を優先。利用できない場合はCPU INT8へ落とせます。</p><span class="arch-tag">GPU / CPU</span></article>
-          <article><div class="arch-number">03</div><h3>AIは初期ON・切替可能</h3><p>サインイン時にAIを起動します。不要な場合は通知領域からOFFにできます。</p><span class="arch-tag">LOCAL / OPTIONAL</span></article>
-          <article><div class="arch-number">04</div><h3>失敗してもMozcへ</h3><p>AIランカーが停止・失敗しても、IMEそのものまで使えなくならないようフォールバックします。</p><span class="arch-tag">FAILSAFE</span></article>
-        </div>
-      </div>
-    </section>
-
-    <section class="section privacy-section" id="privacy">
-      <div class="shell privacy-card reveal">
-        <div class="privacy-visual" aria-hidden="true"><div class="privacy-orbit orbit-a"></div><div class="privacy-orbit orbit-b"></div><div class="privacy-core"><span>LOCAL</span><strong>AI</strong><small>on your PC</small></div></div>
-        <div class="privacy-copy">
-          <span class="kicker">LOCAL BY DESIGN</span>
-          <h2>入力した文章を、変換のために外へ送らない。</h2>
-          <p>前後文脈もAI推論もPC上で処理します。外部AI APIへの送信はありません。テレメトリも実装していません。</p>
-          <ul class="check-list"><li>入力文・前後文脈をローカル処理</li><li>AIモデル自体に通信機能なし</li><li>AI OFF時はモデルを読み込まない</li></ul>
-          <div class="inline-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/PRIVACY.md">プライバシーポリシー →</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/MODEL_CARD.md">モデルカード →</a></div>
-        </div>
-      </div>
-    </section>
-
-    <section class="section install-section" id="start">
-      <div class="shell install-layout">
-        <div class="section-heading reveal"><span class="kicker">GET STARTED</span><h2>新しいWindows PCにも、<br>まとめてインストール。</h2><p>Windows 10/11 x64向けの未署名ベータ版です。セットアップ時は管理者権限とインターネット接続、空き容量3GB以上が必要です。入力内容やAI推論はPC内で処理されます。</p><a class="button button-primary" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Fumiori-AI-IME-New-PC-Setup-v2.1.1-beta.zip">新規PC用セットアップZIPを入手 →</a><p><small>既にインストール済みの方は<a href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta">v2.1.1-beta更新用ZIP</a>をご利用ください。更新用ZIP単体では新規インストールできません。</small></p></div>
-        <ol class="install-steps reveal">
-          <li><span>01</span><div><strong>ZIPを「すべて展開」</strong><p>新規PC用セットアップZIPを展開し、<code>Install-Fumiori-AI-IME.cmd</code>をダブルクリックします。</p></div></li>
-          <li><span>02</span><div><strong>管理者権限を許可</strong><p>正規のMSI（AIモデル同梱）と最新版の更新を自動取得し、SHA-256を検証して適用します。ベータ版は未署名のためWindowsの警告が出る場合があります。</p></div></li>
-          <li><span>03</span><div><strong>サインアウトまたは再起動</strong><p>セットアップの終了表示を確認し、Windowsに再サインインしてから<code>Win + Space</code>でFumiori AI IMEを選びます。再起動が必須の場合は明示します。</p></div></li>
-        </ol>
-      </div>
-    </section>
-
-    <section class="cta-section">
-      <div class="shell cta-card reveal">
-        <div><span class="kicker">PUBLIC BETA</span><h2>IMEは、使ってみないと分からない。</h2><p>普段の文章で試して、変換がおかしかったらその例を教えてください。それが次の改善データになります。</p></div>
-        <div class="cta-actions"><a class="button button-dark" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Fumiori-AI-IME-New-PC-Setup-v2.1.1-beta.zip">新規PC用セットアップを入手 →</a><a class="button button-ghost" href="https://github.com/YAMA-TANA/fumiori-ai-ime/issues">変換例・不具合を報告</a></div>
-      </div>
-    </section>
+      <div class="benchmark-disclaimer reveal"><div class="disclaimer-mark">i</div><p><strong>性能値は実際の環境・文脈で変わります。</strong> 旧Cross-Encoder版の正答率やモデルサイズを現行Dual-Encoder版の実測として扱っていません。検証結果と方式の詳細はリリースノートをご確認ください。</p><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/RELEASE_NOTES_v2.1.1-beta.md">リリースノートを読む →</a></div>
+    </div></section>
+    <section class="section domains-section"><div class="shell domains-layout"><div class="section-heading reveal"><span class="kicker">TRAINED FOR CONTEXT</span><h2>「同じ読み、違う意味」を重点的に。</h2><p>同音異義語や異字同訓、IT・医療・法律などの専門的な文脈に対応することを目指しています。文書分野やカスタム指示を設定できます。</p><div class="domain-pills"><span>異字同訓</span><span>IT・推論</span><span>医療</span><span>法律</span><span>ビジネス</span><span>学術</span></div></div><div class="examples-panel reveal"><div class="example-row"><span class="example-reading">あう</span><div><b>事故に遭う</b><span>旧友と会う</span><span>計算が合う</span></div></div><div class="example-row"><span class="example-reading">おかす</span><div><b>法を犯す</b><span>危険を冒す</span><span>聖域を侵す</span></div></div><div class="example-row"><span class="example-reading">しめる</span><div><b>過半数を占める</b><span>ネクタイを締める</span><span>ドアを閉める</span></div></div><div class="example-row"><span class="example-reading">すいろん</span><div><b>GPU推論</b><span>バッチ推論</span><span>エッジ推論</span></div></div></div></div></section>
+    <section class="section architecture-section" id="design"><div class="shell"><div class="section-heading centered reveal"><span class="kicker">BUILT AS AN IME</span><h2>デモではなく、Windowsで毎日使うための設計。</h2><p>候補の速度だけでなく、ローカル処理、起動・停止、障害時のMozcへのフォールバックを備えます。</p></div><div class="architecture-grid reveal">
+      <article><div class="arch-number">01</div><h3>文脈と候補を別々に処理</h3><p>Dual-Encoderで両者をベクトル化し、内積で最大10件の候補を比較します。</p><span class="arch-tag">DUAL-ENCODER</span></article>
+      <article><div class="arch-number">02</div><h3>候補を先読み・再利用</h3><p>入力中の先読みと、固定候補のSQLiteキャッシュを使います。</p><span class="arch-tag">PREFETCH / CACHE</span></article>
+      <article><div class="arch-number">03</div><h3>AIは初期ON・切替可能</h3><p>通知領域からAIをOFFにでき、CPU/GPU設定も変更できます。</p><span class="arch-tag">LOCAL / OPTIONAL</span></article>
+      <article><div class="arch-number">04</div><h3>失敗してもMozcへ</h3><p>AIランカーが停止・失敗してもMozcの候補順を利用します。</p><span class="arch-tag">FAILSAFE</span></article>
+    </div></div></section>
+    <section class="section privacy-section" id="privacy"><div class="shell privacy-card reveal"><div class="privacy-visual" aria-hidden="true"><div class="privacy-orbit orbit-a"></div><div class="privacy-orbit orbit-b"></div><div class="privacy-core"><span>LOCAL</span><strong>AI</strong><small>on your PC</small></div></div><div class="privacy-copy"><span class="kicker">LOCAL BY DESIGN</span><h2>入力した文章を、変換のために外へ送らない。</h2><p>前後文脈もAI推論もPC上で処理します。外部AI APIへの送信はありません。テレメトリも実装していません。GitHubから配布物を取得する際の通信は別です。</p><ul class="check-list"><li>入力文・前後文脈をローカル処理</li><li>AI推論に外部APIキーは不要</li><li>AIを通知領域からOFFにできる</li></ul><div class="inline-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/PRIVACY.md">プライバシーポリシー →</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/MODEL_CARD.md">モデルカード →</a></div></div></div></section>
+    <section class="section install-section" id="start"><div class="shell install-layout">
+      <div class="section-heading reveal"><span class="kicker">GET STARTED · v2.1.1-beta</span><h2>モデル同梱のMSIで、<br>新しいPCにもインストール。</h2><p>Windows 10/11 x64向けの<strong>未署名ベータ版</strong>です。管理者権限と空き容量約3GBが必要です。フルMSIにはAIモデルが同梱され、旧バージョンのMSIや更新ZIPを別途ダウンロードする必要はありません。</p><a class="button button-primary" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Yamatana-AI-IME-MOZC-Ver-2.1.1-beta-x64.msi">フルMSI（Windows x64）をダウンロード →</a><p><small><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/SHA256SUMS.txt">SHA256SUMS.txt</a>でファイルを検証してください。配布ファイル名の「Yamatana」は旧内部名です。<a href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta">既存インストール向け差分ZIP・旧セットアップZIPはこちら</a>（差分ZIP単体では新規インストール不可）。</small></p></div>
+      <ol class="install-steps reveal"><li><span>01</span><div><strong>フルMSIをダウンロード</strong><p>GitHub Releaseの <code>Yamatana-AI-IME-MOZC-Ver-2.1.1-beta-x64.msi</code> を取得します。</p></div></li><li><span>02</span><div><strong>SHA-256を確認して実行</strong><p>公開ハッシュと照合し、配布元を信頼できる場合に実行します。未署名のためWindowsの警告が出る場合があります。</p></div></li><li><span>03</span><div><strong>サインアウトまたは再起動</strong><p>インストール後にWindowsへ再サインインし、<code>Win + Space</code>でFumiori AI IMEを選びます。</p></div></li></ol>
+    </div></section>
+    <section class="cta-section"><div class="shell cta-card reveal"><div><span class="kicker">PUBLIC BETA</span><h2>IMEは、使ってみないと分からない。</h2><p>普段の文章で試して、変換がおかしかったらその例を教えてください。個人情報や機密の文章は公開Issueに含めないでください。</p></div><div class="cta-actions"><a class="button button-dark" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Yamatana-AI-IME-MOZC-Ver-2.1.1-beta-x64.msi">フルMSIをダウンロード →</a><a class="button button-ghost" href="https://github.com/YAMA-TANA/fumiori-ai-ime/issues">変換例・不具合を報告</a></div></div></section>
   </main>
-
-  <footer class="site-footer">
-    <div class="shell footer-grid">
-      <div><strong>Yamatana AI IME</strong><p>Mozc-based local AI Japanese IME for Windows.</p></div>
-      <div class="footer-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime">GitHub</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases">Releases</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/LICENSE">License</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/PRIVACY.md">Privacy</a></div>
-      <p class="footer-note">Yamatana独自部分はApache License 2.0。Mozc、Ruri、その他の同梱ライブラリにはそれぞれの上流ライセンスが適用されます。</p>
-    </div>
-  </footer>
+  <footer class="site-footer"><div class="shell footer-grid"><div><strong>Fumiori AI IME</strong><p>Mozc-based local AI Japanese IME for Windows.</p></div><div class="footer-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime">GitHub</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases">Releases</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/LICENSE">License</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/PRIVACY.md">Privacy</a></div><p class="footer-note">Fumiori独自部分はApache License 2.0。Mozc、Ruri、その他の同梱ライブラリには各上流ライセンスが適用されます。現在のベータ版は未署名です。</p></div></footer>
 </body>
 </html>
