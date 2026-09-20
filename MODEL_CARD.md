@@ -1,50 +1,40 @@
-# Yamatana Ruri IME reranker model card
+# Fumiori AI IME — Model card
 
 ## Summary
 
-Yamatana AI IME v2の変換候補再順位付け用モデルです。`cl-nagoya/ruri-v3-70m` を310MのIME向けteacherから蒸留し、ONNXへ変換しています。文章生成には使用せず、Mozcが提示した全候補を1回のバッチforwardで採点します。
+Fumiori AI IMEはMozcが生成した日本語変換候補をローカルで再順位付けします。文章生成モデルではありません。**v2.1.1-betaの標準ランタイムはDual-Encoder 70M**です。旧Cross-Encoder LoRAアンサンブルは既存モデル向けの互換フォールバックとして残しています。
 
-## Version and provenance
+## Current runtime: Dual-Encoder 70M (v2.1.1-beta)
 
-### 1. LoRA3 + LoRA6 Ensemble (Recommended: 70M Series)
-- Bundle version: `v2.0.6-beta-70m-ensemble`
-- Runtime uses a calibrated 25/75 ensemble of the LoRA3 and preceding-only LoRA6 variants.
-- Student model: `cl-nagoya/ruri-v3-70m` (ModernBERT architecture, 70.1M parameters, 22.3% size of teacher)
-- Distillation: Margin-MSE + Soft KL + Hard Margin compound distillation from 310M teacher
-- Fine-tuning data: 38,355 contextual pairs (including cultural agency homophone verbs and IT inference/implementation contexts)
-- Export: ONNX opset 18
-- CPU artifacts: Dynamic INT8 (`ruri-ime-lora3-int8.onnx`, `ruri-ime-lora6-int8.onnx`)
-- GPU artifacts: DirectML FP16 (`ruri-ime-lora3-fp16.onnx`, `ruri-ime-lora6-fp16.onnx`)
-- Artifact refresh: the 70M ONNX and tokenizer artifacts shipped in this release
-  were refreshed on 2026-09-09; exact file hashes are pinned in
-  `model-manifest.json`.
-- Validation agreement with teacher: **99.85%** (Task val acc: 99.75%)
+- 70M級の文脈encoderと候補encoderを使い、各埋め込みベクトルの内積で候補を比較します。
+- 入力中に候補ベクトルを先読みし、Mozc候補の**最大10件**を再順位付けします。
+- 固定候補の埋め込み辞書を最大50万語までバックグラウンドでSQLiteに保存し、モデル内容のハッシュに応じて再利用します。
+- 入力中のプリフェッチ、確定後の文脈更新、複数文節の順位付けをDual-Encoder経路で連携させています。
+- AIが停止・失敗した場合はMozcの候補順にフォールバックします。
+- CPU向けINT8とGPU向けFP16のONNXモデルを用います。実際の速度・精度はハードウェア、文脈、候補に依存します。
 
-### 2. High-Capacity Model (310M Series)
-- Bundle version: `v0.1.0`
-- Base model: `cl-nagoya/ruri-v3-reranker-310m` (315M parameters)
-- LoRA parameters: rank 16, alpha 32, dropout 0.05; ModernBERT `Wqkv`, `Wo`, `Wi`
-- Export: ONNX opset 18
-- CPU artifact: dynamic INT8 (`ruri-ime-int8.onnx`, 317.66 MB)
-- GPU artifact: FP16 (`ruri-ime-fp16.onnx`, 631.04 MB)
+最新配布物・変更点・インストール方式は[GitHub Release v2.1.1-beta](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)、[リリースノート](RELEASE_NOTES_v2.1.1-beta.md)、[README](README.md)を参照してください。
 
-The bundle and every required file are pinned by SHA-256 in `model-manifest.json`. The model is published separately from Git history.
+## Legacy models / provenance
 
-## Intended use
+### Cross-Encoder LoRA3 + LoRA6 ensemble（旧v2.0系）
 
-Japanese IME候補の文脈適合度を比較する用途です。医学・法律等の設定やカスタム指示は補助情報であり、専門家の判断や文章内容の正確性を保証しません。
+- Historical bundle version: `v2.0.6-beta-70m-ensemble`（[model-manifest.json](model-manifest.json)の参照先）。**このmanifestは現在のDual-Encoder標準ランタイムそのものを記述するものではありません。**
+- Base student: `cl-nagoya/ruri-v3-70m` (ModernBERT architecture, about 70.1M parameters)。310M teacherから蒸留した旧系列です。
+- Historical fine-tuning data: 38,355 contextual pairs。ONNX opset 18、CPU Dynamic INT8 / GPU FP16。
+- 旧モデルは候補と文脈を組み合わせてバッチ推論するCross-Encoder構成です。現在のDual-Encoderの精度や速度として旧モデルのベンチマーク値を引用しないでください。
 
-## Limitations
+### High-capacity model（旧310M系）
 
-- Betaモデルであり、誤変換、偏り、不自然な順位付けがあり得ます。
-- 前後文脈が短い、候補に正解がない、固有名詞が未収録の場合は改善しません。
-- モデル出力は候補間の相対順位であり、事実性や安全性の判定ではありません。
-- DirectMLの利用可否はGPU、ドライバー、同梱ONNX Runtimeに依存します。
+- Historical bundle version: `v0.1.0`。Base model: `cl-nagoya/ruri-v3-reranker-310m`（315M parameters）。
+- ONNX opset 18、CPU Dynamic INT8 / GPU FP16。旧実験・比較のための構成です。
 
-## Privacy
+大容量モデルはGit履歴の外で配布されます。モデルの由来や各ファイルのSHA-256は該当リリースおよびmanifestで確認してください。
 
-推論はローカルで実行され、モデル自身に通信機能はありません。
+## Intended use and limitations
 
-## Attribution and license
+日本語IME候補の文脈適合度を比較する用途です。医学・法律等の文書分野設定やカスタム指示は補助情報であり、専門家の判断や文章内容の正確性を保証しません。ベータモデルのため誤変換・偏り・不自然な順位付けがあり得ます。文脈が短い、正解候補がMozcにない、固有名詞が未収録といった場合は改善しないことがあります。候補の相対順位は事実性や安全性の判定ではありません。
 
-Base model copyright and credit belong to the CL Research Group in Nagoya, Japan and the Ruri authors. Base and Yamatana model modifications are distributed under Apache License 2.0. See `NOTICE` and `THIRD_PARTY_LICENSES.md`.
+## Privacy, attribution and license
+
+推論は利用者のPC内で行い、モデル自身に通信機能はありません。モデル・インストーラーのダウンロードではGitHubへの通信が発生します。詳細は[PRIVACY.md](PRIVACY.md)をご覧ください。Ruriの基盤モデルのクレジットは名古屋大学のCL Research GroupおよびRuri著作者に帰属します。独自部分・第三者コンポーネントのライセンスは[NOTICE](NOTICE)と[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md)を参照してください。

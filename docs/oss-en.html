@@ -3,73 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Open-source, privacy, security, code-signing and contribution policies for Yamatana AI IME.">
-  <title>OSS & Policies — Yamatana AI IME</title>
+  <meta name="description" content="Open-source, privacy, security, code-signing and contribution policies for Fumiori AI IME.">
+  <title>OSS & Policies — Fumiori AI IME</title>
   <link rel="stylesheet" href="/fumiori-ai-ime/policy.css?v=20260907-1">
   <link rel="canonical" href="https://yama-tana.github.io/fumiori-ai-ime/oss-en.html">
 </head>
 <body>
-  <header class="policy-header">
-    <div class="policy-shell policy-nav">
-      <a class="policy-brand" href="/fumiori-ai-ime/"><span class="policy-mark">Y</span><span><strong>Yamatana AI IME</strong><small>OSS & Policies</small></span></a>
-      <div class="language-switch"><a href="/fumiori-ai-ime/oss.html" lang="ja">日本語</a><a class="active" href="/fumiori-ai-ime/oss-en.html" lang="en">English</a></div>
-    </div>
-  </header>
-
-  <section class="policy-hero">
-    <div class="policy-shell">
-      <span class="policy-kicker">OPEN SOURCE · TRANSPARENCY</span>
-      <h1>Open source,<br>with public policies.</h1>
-      <p>Yamatana AI IME is a Windows Japanese input method developed around public source, pinned build inputs and local AI inference. This page summarizes our licensing, privacy, security, code-signing and contribution policies.</p>
-      <div class="badges"><span class="badge">Apache-2.0</span><span class="badge">Public source</span><span class="badge">Local inference</span><span class="badge">No telemetry</span><span class="badge">GitHub Actions build</span></div>
-    </div>
-  </section>
-
-  <main class="policy-main">
-    <div class="policy-shell">
-      <nav class="policy-index" aria-label="Policy index"><a href="#oss">OSS</a><a href="#privacy">Privacy</a><a href="#security">Security</a><a href="#signing">Code signing</a><a href="#contributing">Contributing</a></nav>
-
-      <section class="policy-section" id="oss">
-        <h2>Open source</h2>
-        <p>Code authored by Yamatana is published under the <strong>Apache License 2.0</strong>. The source code, build scripts, GitHub Actions workflows and Yamatana's Mozc modifications are publicly reviewable.</p>
-        <p>Third-party components such as Mozc, Ruri, ONNX Runtime and Qt retain their respective upstream licenses. They are not relicensed merely because they are distributed as part of Yamatana AI IME.</p>
-        <div class="status-grid"><div><strong>Yamatana code</strong><span>Apache License 2.0</span></div><div><strong>Mozc derivative</strong><span>Built from a public fork and pinned commit</span></div><div><strong>Third-party software</strong><span>Upstream licenses and notices retained</span></div></div>
-        <div class="callout">To make release provenance reviewable, the repository records the Mozc fork revision, model-bundle SHA-256 and major third-party dependencies.</div>
-        <div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime">Source repository ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/LICENSE">Apache-2.0 License ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/THIRD_PARTY_LICENSES.md">Third-party licenses ↗</a><a href="https://github.com/YAMA-TANA/mozc">Mozc fork ↗</a></div>
-      </section>
-
-      <section class="policy-section" id="privacy">
-        <h2>Privacy policy</h2>
-        <p>IME input, conversion candidates, surrounding context, dictionary data, document-domain settings, custom instructions and AI inference are processed on the user's Windows PC.</p>
-        <ul><li>Typed text and surrounding context are not sent to an external AI API.</li><li>The application does not include telemetry, advertising SDKs, analytics SDKs or automatic crash-report uploads.</li><li>No online-AI API key is required.</li><li>Settings are stored in the user's local profile.</li><li>If diagnostic logging is enabled, diagnostic information may be written locally.</li></ul>
-        <p>Development-time build scripts and user-initiated downloads from GitHub Releases can access the network. Those operations are separate from installed IME input processing.</p>
-        <div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/PRIVACY.md">Source PRIVACY.md ↗</a></div>
-      </section>
-
-      <section class="policy-section" id="security">
-        <h2>Security policy</h2>
-        <p>The latest Public Beta is currently the supported security-update target. We accept reports involving typed-content handling, elevation, MSI custom actions, named pipes, model verification and dependency integrity.</p>
-        <ul><li>Use GitHub Private Vulnerability Reporting for sensitive reports when it is available.</li><li>Do not post secrets or sensitive reproduction data to a public Issue.</li><li>Release assets can be checked against the <code>SHA256SUMS.txt</code> published with the same release.</li><li>Certificates, API keys and private keys must not be committed to the repository.</li></ul>
-        <div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/security">Security ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/SECURITY.md">Source SECURITY.md ↗</a></div>
-      </section>
-
-      <section class="policy-section" id="signing">
-        <h2>Code-signing policy</h2>
-        <p>The current Public Beta is <strong>unsigned</strong>. We do not represent unsigned binaries as signed. The project is preparing a verifiable code-signing path, including a SignPath Foundation application.</p>
-        <p>Future signatures are intended to cover Yamatana/Mozc-derived DLL, EXE and MSI artifacts produced from public source on GitHub-hosted Windows runners and traceable as GitHub Actions artifacts. Arbitrary local uploads and unrelated third-party binaries are outside the proposed signing boundary.</p>
-        <div class="callout">Intended provenance: public source/tag → GitHub Actions build → unsigned artifact → signing request → signed artifact → SHA-256 → GitHub Release.</div>
-        <div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/CODE_SIGNING_POLICY.md">Code-signing policy ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/docs/SIGNPATH_READINESS.md">SignPath readiness ↗</a></div>
-      </section>
-
-      <section class="policy-section" id="contributing">
-        <h2>Contributing</h2>
-        <p>Issues, reproduction cases, documentation fixes, tests and code contributions are welcome. Reports in Japanese are also welcome.</p>
-        <ul><li>Pull Requests should describe their purpose, user impact, test results and any licensing implications.</li><li>New network traffic, telemetry, persistent background work, elevated privileges or external datasets must be disclosed.</li><li>External code or data should record its source, revision, license and redistribution status.</li><li>Signing, release workflows, installer logic and dependency-fetching changes are treated as security-sensitive.</li></ul>
-        <div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/CONTRIBUTING.md">CONTRIBUTING.md ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/issues">Issues ↗</a></div>
-      </section>
-    </div>
-  </main>
-
-  <footer class="policy-footer"><div class="policy-shell"><div><strong>Yamatana AI IME</strong><br><span>Open source local AI Japanese IME for Windows.</span></div><div><a href="/fumiori-ai-ime/">Back to home</a> · <a href="https://github.com/YAMA-TANA/fumiori-ai-ime">GitHub</a></div></div></footer>
+  <header class="policy-header"><div class="policy-shell policy-nav"><a class="policy-brand" href="/fumiori-ai-ime/"><span class="policy-mark">F</span><span><strong>Fumiori AI IME</strong><small>OSS & Policies</small></span></a><div class="language-switch"><a href="/fumiori-ai-ime/oss.html" lang="ja">日本語</a><a class="active" href="/fumiori-ai-ime/oss-en.html" lang="en">English</a></div></div></header>
+  <section class="policy-hero"><div class="policy-shell"><span class="policy-kicker">OPEN SOURCE · TRANSPARENCY</span><h1>Open source,<br>with public policies.</h1><p>Fumiori AI IME is a Windows Japanese input method developed around public source, pinned build inputs and local AI inference. This page summarizes our licensing, privacy, security, code-signing and contribution policies.</p><div class="badges"><span class="badge">Apache-2.0</span><span class="badge">Public source</span><span class="badge">Local inference</span><span class="badge">No telemetry</span><span class="badge">GitHub Actions build</span></div></div></section>
+  <main class="policy-main"><div class="policy-shell">
+    <nav class="policy-index" aria-label="Policy index"><a href="#oss">OSS</a><a href="#privacy">Privacy</a><a href="#security">Security</a><a href="#signing">Code signing</a><a href="#contributing">Contributing</a></nav>
+    <section class="policy-section" id="oss"><h2>Open source</h2><p>Fumiori-specific code is published under the <strong>Apache License 2.0</strong>. Source code, build scripts, GitHub Actions workflows and modifications to Mozc are publicly reviewable.</p><p>Third-party components such as Mozc, Ruri, ONNX Runtime and Qt retain their respective upstream licenses. They are not relicensed merely because they are distributed as part of Fumiori AI IME.</p><div class="status-grid"><div><strong>Fumiori code</strong><span>Apache License 2.0</span></div><div><strong>Mozc derivative</strong><span>Built from a public fork and pinned commit</span></div><div><strong>Third-party software</strong><span>Upstream licenses and notices retained</span></div></div><div class="callout">To make release provenance reviewable, the repository records the Mozc fork revision, model-bundle SHA-256 and major third-party dependencies.</div><div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime">Source repository ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/LICENSE">Apache-2.0 License ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/THIRD_PARTY_LICENSES.md">Third-party licenses ↗</a><a href="https://github.com/YAMA-TANA/mozc">Mozc fork ↗</a></div></section>
+    <section class="policy-section" id="privacy"><h2>Privacy policy</h2><p>IME input, conversion candidates, surrounding context, dictionary data, document-domain settings, custom instructions and AI inference are processed on the user's Windows PC.</p><ul><li>Typed text and surrounding context are not sent to an external AI API.</li><li>The application does not include telemetry, advertising SDKs, analytics SDKs or automatic crash-report uploads.</li><li>No online-AI API key is required.</li><li>Settings are stored in the user's local profile.</li><li>If diagnostic logging is enabled, diagnostic information may be written locally.</li></ul><p>Development-time build scripts and user-initiated downloads from GitHub Releases can access the network. Those operations are separate from installed IME input processing.</p><div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/PRIVACY.md">Source PRIVACY.md ↗</a></div></section>
+    <section class="policy-section" id="security"><h2>Security policy</h2><p>The latest Public Beta is currently the supported security-update target. We accept reports involving typed-content handling, elevation, MSI custom actions, named pipes, model verification and dependency integrity.</p><ul><li>Use GitHub Private Vulnerability Reporting for sensitive reports when it is available.</li><li>Do not post secrets or sensitive reproduction data to a public Issue.</li><li>Release assets can be checked against the <code>SHA256SUMS.txt</code> published with the same release.</li><li>Certificates, API keys and private keys must not be committed to the repository.</li></ul><div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/security">Security ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/SECURITY.md">Source SECURITY.md ↗</a></div></section>
+    <section class="policy-section" id="signing"><h2>Code-signing policy</h2><p>The current Public Beta is <strong>unsigned</strong>. We do not represent unsigned binaries as signed. The project is preparing a verifiable code-signing path, including a SignPath Foundation application.</p><p>Future signatures are intended to cover Fumiori/Mozc-derived DLL, EXE and MSI artifacts produced from public source on GitHub-hosted Windows runners and traceable as GitHub Actions artifacts. Arbitrary local uploads and unrelated third-party binaries are outside the proposed signing boundary.</p><div class="callout">Intended provenance: public source/tag → GitHub Actions build → unsigned artifact → signing request → signed artifact → SHA-256 → GitHub Release.</div><div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/CODE_SIGNING_POLICY.md">Code-signing policy ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/docs/SIGNPATH_READINESS.md">SignPath readiness ↗</a></div></section>
+    <section class="policy-section" id="contributing"><h2>Contributing</h2><p>Issues, reproduction cases, documentation fixes, tests and code contributions are welcome. Reports in Japanese are also welcome.</p><ul><li>Pull Requests should describe their purpose, user impact, test results and any licensing implications.</li><li>New network traffic, telemetry, persistent background work, elevated privileges or external datasets must be disclosed.</li><li>External code or data should record its source, revision, license and redistribution status.</li><li>Signing, release workflows, installer logic and dependency-fetching changes are treated as security-sensitive.</li></ul><div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/CONTRIBUTING.md">CONTRIBUTING.md ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/issues">Issues ↗</a></div></section>
+  </div></main>
+  <footer class="policy-footer"><div class="policy-shell"><div><strong>Fumiori AI IME</strong><br><span>Open source local AI Japanese IME for Windows.</span></div><div><a href="/fumiori-ai-ime/">Back to home</a> · <a href="https://github.com/YAMA-TANA/fumiori-ai-ime">GitHub</a></div></div></footer>
 </body>
 </html>
