@@ -1,0 +1,67 @@
+name: Publish new-PC setup bundle
+on:
+  push:
+    branches: [main, fix/fresh-pc-installer-20260920]
+    paths:
+      - '.github/workflows/publish-fresh-setup.yml'
+      - 'scripts/fresh-install/**'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  verify-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check PowerShell syntax, pinned assets and Windows launcher
+        shell: pwsh
+        run: |
+          $file = 'scripts/fresh-install/install-fresh.ps1'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { $errors | Out-String | Write-Error; exit 1 }
+          $script = Get-Content -LiteralPath $file -Raw
+          $cmd = Get-Content -LiteralPath 'scripts/fresh-install/Install-Fumiori-AI-IME.cmd' -Raw -Encoding UTF8
+          foreach ($expected in @('DEFE3A958C3C72751851CA67560488E7A279E3BF69DFEBAA51B00396E2D4B455', '0176933270A75B04CAD182D73543EBC4EC16272A5C798CD609D7021383235C51', 'apply_hotfix.ps1', '/norestart', '3010', '1641')) {
+            if (-not $script.Contains($expected)) { throw "Missing installer invariant: $expected" }
+          }
+          foreach ($expected in @('chcp 65001', 'install-fresh.ps1', '再起動が必要です')) {
+            if (-not $cmd.Contains($expected)) { throw "Missing launcher invariant: $expected" }
+          }
+          Write-Host 'PowerShell parser and clean-PC packaging invariants passed.'
+  publish:
+    needs: verify-windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package scripts and validate pinned release archive
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile, ZIP_DEFLATED
+          import hashlib, urllib.request, io
+          root=Path('scripts/fresh-install')
+          target=Path('Fumiori-AI-IME-New-PC-Setup-v2.1.1-beta.zip')
+          with ZipFile(target,'w',ZIP_DEFLATED) as z:
+            for name in ('Install-Fumiori-AI-IME.cmd','install-fresh.ps1'):
+              assert (root/name).is_file(),name
+              z.write(root/name, name)
+          with ZipFile(target) as z:
+            assert sorted(z.namelist())==['Install-Fumiori-AI-IME.cmd','install-fresh.ps1']
+            ps=z.read('install-fresh.ps1').decode('utf-8')
+            cmd=z.read('Install-Fumiori-AI-IME.cmd').decode('utf-8')
+            assert 'RESTART REQUIRED' in ps and '再起動が必要です' in cmd
+          u='https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Yamatana-AI-IME-v2.1.1-beta-candidate10.zip'
+          data=urllib.request.urlopen(urllib.request.Request(u,headers={'User-Agent':'Fumiori-setup-verification'}),timeout=120).read()
+          assert hashlib.sha256(data).hexdigest()=='0176933270a75b04cad182d73543ebc4ec16272a5c798cd609d7021383235c51'
+          with ZipFile(io.BytesIO(data)) as z:
+            for name in ('hotfix/mozc_server.exe','hotfix/YamatanaAIIME.exe','scripts/apply_hotfix.ps1'):
+              assert name in z.namelist(),name
+          print('SETUP_BUNDLE_PASS',target.stat().st_size)
+          PY
+      - name: Publish ZIP on the existing v2.1.1-beta release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload v2.1.1-beta Fumiori-AI-IME-New-PC-Setup-v2.1.1-beta.zip --repo "${{ github.repository }}" --clobber
