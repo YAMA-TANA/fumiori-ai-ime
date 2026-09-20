@@ -69,13 +69,20 @@ v2.1.0-beta 以降の標準構成は Dual-Encoder 70M です。文脈を一度�
 
 ## インストール
 
-1. [v2.1.1-betaのReleaseページ](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)から配布ファイルをダウンロードします。既存インストールを更新する場合は `Yamatana-AI-IME-v2.1.1-beta-candidate10.zip` の `scripts\apply_hotfix.ps1` を管理者 PowerShell で実行してください。新しい版が公開された場合は [Releases一覧](https://github.com/YAMA-TANA/fumiori-ai-ime/releases) を確認してください。
-2. PowerShellで `Get-FileHash .\Yamatana-AI-IME-MOZC-Ver-<version>-x64.msi -Algorithm SHA256` を実行し、公開ハッシュと一致することを確認します。配布ファイル名は既存インストールとの互換性のため、旧内部名を維持しています。
-3. `Install-Yamatana-AI-IME.cmd` をダブルクリックしてインストールします。画面にMSI終了コードが表示され、`3010` または `1641` の場合は「インストール成功・PCの再起動が必要」と表示されます。MSIを直接実行する場合は、完了後のログまたは終了コードを確認してください。
-4. サインアウトまたは再起動後、トレイとAIモデルが起動します。`Win + Space` で **Fumiori AI IME** を選択します。
-5. 通知領域のFumioriアイコンからAIをOFFにできます。アイコンが隠れている場合は、タスクバーの `^` を開いてください。
+### 新しいPCに初めてインストールする場合
 
-本ソフトはMSIXではありません。既存のMozc TSF登録順序を維持したMSIで配布します。
+1. [新規PC用セットアップZIP（v2.1.1-beta）](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Fumiori-AI-IME-New-PC-Setup-v2.1.1-beta.zip)をダウンロードし、ZIPを「すべて展開」します。更新用の `Yamatana-AI-IME-v2.1.1-beta-candidate10.zip` **だけでは新規インストールできません**。
+2. 展開した `Install-Fumiori-AI-IME.cmd` をダブルクリックして管理者権限を許可します。PowerShellを操作したり、MSIと更新ZIPを別々にダウンロードしたりする必要はありません。インストーラーが [v2.1.0-betaのモデル同梱MSI](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.0-beta) と [v2.1.1-betaの更新ファイル](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)を取得し、両方のSHA-256を検証してインストールします。初回セットアップにはインターネット接続、空き容量3GB以上、管理者権限が必要です。
+3. 完了メッセージを確認し、**サインアウトまたは再起動**します。MSIが終了コード `3010` または `1641` を返した場合は、セットアップ画面に「PCの再起動が必要です」と表示します。終了コード `0` の場合も、IME登録とトレイ起動のためサインアウトまたは再起動してください。
+4. サインイン後、`Win + Space` で **Fumiori AI IME** を選択します。AIは初期ONで、通知領域のアイコンからOFFにできます。
+
+ベータ版は未署名で、Windows SmartScreenや発行元の警告が出る場合があります。配布物とSHA-256を確認し、信頼できる場合にのみ実行してください。MSIインストールログは `%LOCALAPPDATA%\FumioriAIIME\Setup\v2.1.1-beta\install-msi.log` に残ります。インストーラー本体は [`scripts/fresh-install/`](scripts/fresh-install/) に公開しています。
+
+### 既にインストール済みの場合
+
+[最新版のリリース](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)から `Yamatana-AI-IME-v2.1.1-beta-candidate10.zip` を展開し、`scripts\apply_hotfix.ps1` を管理者 PowerShell で実行してください。これは既存MSIへの差分更新であり、新規PC向けセットアップではありません。
+
+配布ファイル名やインストール先の旧内部名は既存環境との互換性のため維持しています。本ソフトはMSIXではなくMSIで配布します。
 
 ## AI設定
 

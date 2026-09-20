@@ -33,8 +33,8 @@ s = replace_once(s, 'Windows 10 / 11 · v2.0.0-beta',
                  'Windows 10 / 11 · v2.1.1-beta', path)
 s = replace_once(s, '>Windows版を試す <span aria-hidden="true">→</span></a>',
                  '>新規PC用セットアップを入手 <span aria-hidden="true">→</span></a>', path)
-s = replace_once(s, '<span>AIは初期OFF</span><p>通常のMozc変換はそのまま使えます。必要な時だけトレイからAIモデルを読み込みます。</p><span class="arch-tag">ON DEMAND</span>',
-                 '<span>AIは初期ON・切替可能</span><p>サインイン時にAIを起動します。不要な場合は通知領域からOFFにできます。</p><span class="arch-tag">LOCAL / OPTIONAL</span>', path)
+s = replace_once(s, '<h3>AIは初期OFF</h3><p>通常のMozc変換はそのまま使えます。必要な時だけトレイからAIモデルを読み込みます。</p><span class="arch-tag">ON DEMAND</span>',
+                 '<h3>AIは初期ON・切替可能</h3><p>サインイン時にAIを起動します。不要な場合は通知領域からOFFにできます。</p><span class="arch-tag">LOCAL / OPTIONAL</span>', path)
 start = s.index('    <section class="section install-section" id="start">')
 end = s.index('    <section class="cta-section">', start)
 s = s[:start] + '''    <section class="section install-section" id="start">

@@ -29,10 +29,16 @@
 
 入力内容と利用統計は収集せず、AI処理は端末内で完結します。
 
-## 配布ファイル
+## 新しいPCへの配布
 
-同梱の `Install-Yamatana-AI-IME.cmd` をダブルクリックしてください。インストール終了後にMSI終了コードが表示され、`3010` または `1641` の場合は「インストール成功・PCの再起動が必要」と明示されます。ログは `Yamatana-AI-IME-install.log` に保存されます。
-本テスト配布版は未署名です。Windowsの警告が表示された場合は、発行元とSHA-256を確認してから続行してください。
+[新規PC用セットアップZIP](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Fumiori-AI-IME-New-PC-Setup-v2.1.1-beta.zip)をダウンロードし、「すべて展開」後に `Install-Fumiori-AI-IME.cmd` をダブルクリックしてください。管理者権限を許可すると、モデル同梱のv2.1.0-beta MSIとv2.1.1-betaの更新ファイルを自動取得し、それぞれのSHA-256を照合して適用します。更新用ZIPだけを展開しても新規インストールはできません。
 
-MSIX化の技術判断とMicrosoft Store向けの選択肢は、同梱の
-`MSIX_AND_STORE_NOTES_JA.md` を参照してください。
+終了コード `3010` / `1641` の場合は「PCの再起動が必要です」と表示されます。`0` の場合もIME登録とトレイ起動を反映するため、**サインアウトまたは再起動**してください。ログは `%LOCALAPPDATA%\FumioriAIIME\Setup\v2.1.1-beta\install-msi.log` に保存されます。
+
+未署名ベータ版のため、Windowsの発行元やSmartScreenの警告が出る場合があります。必要環境はWindows 10 22H2／11 x64、RAM8GB以上、空き容量3GB以上、管理者権限と初回ダウンロード用のインターネット接続です。AI変換時はインターネット接続を必要としません。
+
+## 既存インストールの更新
+
+[最新版リリース](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)の `Yamatana-AI-IME-v2.1.1-beta-candidate10.zip` を展開し、`scripts\apply_hotfix.ps1` を管理者PowerShellから実行します。元の `Install-Yamatana-AI-IME.cmd` はMSIと同じ配布フォルダーに置かれている場合にのみ使用してください。
+
+MSIX化の技術判断とMicrosoft Store向けの選択肢は、同梱の `MSIX_AND_STORE_NOTES_JA.md` を参照してください。

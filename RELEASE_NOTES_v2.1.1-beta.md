@@ -17,3 +17,9 @@
 
 - `Yamatana-AI-IME-v2.1.1-beta-candidate10.zip`
 - 既存インストールへの適用スクリプト: `scripts\apply_hotfix.ps1`
+
+## 新しいPC用セットアップパック
+
+- [新規PC用セットアップZIP](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Fumiori-AI-IME-New-PC-Setup-v2.1.1-beta.zip)には `Install-Fumiori-AI-IME.cmd` と `install-fresh.ps1` が入ります。展開してCMDをダブルクリックすると、SHA-256照合のうえモデル同梱v2.1.0-beta MSIと本リリースの差分更新を順番に適用します。
+- 既存の `Yamatana-AI-IME-v2.1.1-beta-candidate10.zip` は差分更新専用であり、それだけでは新規インストールできません。
+- 変更の反映にはサインアウトまたは再起動が必要です。MSIが再起動必須を返した場合は明示します。
