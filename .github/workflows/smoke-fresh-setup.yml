@@ -1,0 +1,27 @@
+name: Smoke test full clean Windows installation
+on:
+  push:
+    branches: [fix/fresh-pc-installer-20260920]
+    paths: ['.github/workflows/smoke-fresh-setup.yml']
+permissions:
+  contents: read
+jobs:
+  fresh-install:
+    timeout-minutes: 16
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the public MSI and latest hotfix on a fresh Windows host
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/fresh-install/install-fresh.ps1
+          $code=$LASTEXITCODE
+          if ($code -notin @(0,3010)) { throw "Clean installer failed with code $code" }
+          $root='C:\Program Files (x86)\Yamatana AI IME'
+          $runtime=Join-Path $root 'ai_runtime\YamatanaAIIME.exe'
+          $server=Join-Path $root 'mozc_server.exe'
+          if (-not (Test-Path $runtime) -or -not (Test-Path $server)) { throw 'Installation did not lay down both hotfix binaries.' }
+          $exe=Start-Process -FilePath $runtime -ArgumentList '--check' -Wait -PassThru
+          if ($exe.ExitCode -ne 0) { throw "Installed runtime --check failed: $($exe.ExitCode)" }
+          Write-Host "CLEAN_INSTALL_PASS exit=$code runtime_check=$($exe.ExitCode)"
