@@ -10,6 +10,7 @@ import subprocess
 import sys
 import time
 import unittest
+from unittest.mock import patch
 
 from client.fallback import original_order, safe_rank
 from ranker.protocol import (
@@ -198,7 +199,7 @@ class RankerTests(unittest.TestCase):
                 }],
             }, normalized)
 
-    def test_batch_protocol_accepts_fifteen_candidates_per_segment(self):
+    def test_batch_protocol_accepts_ten_candidates_per_segment(self):
         req = {
             "request_id": "candidate-window-boundary",
             "inference_trigger": "explicit",
@@ -209,18 +210,30 @@ class RankerTests(unittest.TestCase):
                 "read": "はな",
                 "candidates": [
                     {"id": f"c{i}", "text": f"候補{i}", "rank": i + 1}
-                    for i in range(15)
+                    for i in range(10)
                 ],
             }],
         }
         self.assertEqual(
-            len(validate_batch_request(req)["segments"][0]["candidates"]), 15
+            len(validate_batch_request(req)["segments"][0]["candidates"]), 10
+        )
+        output = process_line(
+            (json.dumps(req, ensure_ascii=False) + "\n").encode("utf-8"),
+            RuleBasedRanker(),
+        )
+        self.assertIsNotNone(output)
+        self.assertEqual(
+            len(json.loads(output)["segments"]), 1
         )
         req["segments"][0]["candidates"].append(
-            {"id": "c15", "text": "候補15", "rank": 16}
+            {"id": "c10", "text": "候補10", "rank": 11}
         )
         with self.assertRaises(ProtocolError):
             validate_batch_request(req)
+        self.assertIsNone(process_line(
+            (json.dumps(req, ensure_ascii=False) + "\n").encode("utf-8"),
+            RuleBasedRanker(),
+        ))
 
     def test_response_cache_ignores_request_id_and_expires(self):
         class CountingRanker:
@@ -244,13 +257,15 @@ class RankerTests(unittest.TestCase):
         first["inference_trigger"] = "explicit"
         cached = dict(first)
         cached["request_id"] = "cache-2"
-        cache.rank(first)
-        result = cache.rank(cached)
-        self.assertEqual(delegate.calls, 1)
-        self.assertEqual(result["request_id"], "cache-2")
-        time.sleep(0.03)
-        cache.rank({**cached, "request_id": "cache-3"})
-        self.assertEqual(delegate.calls, 2)
+        now = [0.0]
+        with patch("ranker.ranker.time.perf_counter", side_effect=lambda: now[0]):
+            cache.rank(first)
+            result = cache.rank(cached)
+            self.assertEqual(delegate.calls, 1)
+            self.assertEqual(result["request_id"], "cache-2")
+            now[0] = 0.03
+            cache.rank({**cached, "request_id": "cache-3"})
+            self.assertEqual(delegate.calls, 2)
 
     def test_response_cache_does_not_store_noncacheable_batch_fallback(self):
         class NonCacheableBatchResponse(dict):

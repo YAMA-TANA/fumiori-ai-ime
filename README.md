@@ -4,7 +4,7 @@ Fumiori AI IMEは、Mozcの変換候補をローカルAI rerankerで並べ替え
 
 > **Beta / 未署名** — 現在公開中のBetaは検証用の未署名ビルドです。Windowsの警告が表示される場合があります。SignPath FoundationによるOSSコード署名の申請準備中であり、署名済みであるかのような表示は行いません。
 
-> **最新リリース: v2.1.1-beta** — [GitHub Releaseからダウンロード](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)できます。Dual-Encoder 70M を標準ランタイムとし、入力中の候補ベクトル先読みと15候補の再順位付けに対応しています。
+> **最新リリース: v2.1.1-beta** — [GitHub Releaseからダウンロード](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)できます。Dual-Encoder 70M を標準ランタイムとし、入力中の候補ベクトル先読みと10候補の再順位付けに対応しています。
 
 ## まず試してほしいこと
 
@@ -44,7 +44,8 @@ Mozcが作った候補をAIが読み直すため、AIが勝手に文章を生成
 
 - Mozcベースの通常変換を保ったまま、AI有効時だけ候補を再順位付け
 - Dual-Encoder 70Mを標準エンジンとして、文脈ベクトルと候補ベクトルの内積で高速に再順位付け
-- 入力中に文脈と候補ベクトルを先読みし、明示変換では最大15候補を1バッチで処理
+- 入力中に文脈と候補ベクトルを先読みし、明示変換では最大10候補を1バッチで処理
+- 固定候補の埋め込みを最大50万語までバックグラウンドでSQLiteに保存し、次回以降の変換で再利用
 - 旧Cross-Encoder LoRAアンサンブルは既存モデルとの互換フォールバックとして利用可能
 - 入力、前後文脈、カスタム指示、辞書、推論をPC内だけで処理
 - タスクバートレイからAI ON/OFF、文脈保持、文書分野、カスタム指示、CPU/GPU設定を変更
@@ -68,7 +69,7 @@ v2.1.0-beta 以降の標準構成は Dual-Encoder 70M です。文脈を一度�
 
 ## インストール
 
-1. [v2.1.1-betaのReleaseページ](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)から配布ファイルをダウンロードします。既存インストールを更新する場合は `Yamatana-AI-IME-v2.1.1-beta-candidate15.zip` の `scripts\apply_hotfix.ps1` を管理者 PowerShell で実行してください。新しい版が公開された場合は [Releases一覧](https://github.com/YAMA-TANA/fumiori-ai-ime/releases) を確認してください。
+1. [v2.1.1-betaのReleaseページ](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)から配布ファイルをダウンロードします。既存インストールを更新する場合は `Yamatana-AI-IME-v2.1.1-beta-candidate10.zip` の `scripts\apply_hotfix.ps1` を管理者 PowerShell で実行してください。新しい版が公開された場合は [Releases一覧](https://github.com/YAMA-TANA/fumiori-ai-ime/releases) を確認してください。
 2. PowerShellで `Get-FileHash .\Yamatana-AI-IME-MOZC-Ver-<version>-x64.msi -Algorithm SHA256` を実行し、公開ハッシュと一致することを確認します。配布ファイル名は既存インストールとの互換性のため、旧内部名を維持しています。
 3. `Install-Yamatana-AI-IME.cmd` をダブルクリックしてインストールします。画面にMSI終了コードが表示され、`3010` または `1641` の場合は「インストール成功・PCの再起動が必要」と表示されます。MSIを直接実行する場合は、完了後のログまたは終了コードを確認してください。
 4. サインアウトまたは再起動後、トレイとAIモデルが起動します。`Win + Space` で **Fumiori AI IME** を選択します。

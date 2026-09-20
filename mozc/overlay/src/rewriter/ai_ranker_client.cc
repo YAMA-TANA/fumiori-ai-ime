@@ -22,7 +22,7 @@ constexpr size_t kMaxResponseBytes = 262144;
 constexpr size_t kMaxRequestBytes = 2097152;
 constexpr size_t kMaxCandidates = 512;
 constexpr size_t kMaxSegments = 6;
-constexpr size_t kMaxCandidatesPerSegment = 15;
+constexpr size_t kMaxCandidatesPerSegment = 10;
 
 bool EscapeJson(const std::string& value, std::string* out) {
   if (out == nullptr) return false;

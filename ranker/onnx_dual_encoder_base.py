@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import json
+import hashlib
 import math
 import os
 from pathlib import Path
@@ -94,6 +95,15 @@ def _resolve_first(relative_paths: tuple[str, ...]) -> Optional[Path]:
             if candidate.exists():
                 return candidate
     return None
+
+
+def _model_fingerprint(path: Path) -> str:
+    """Identify model weights across source, bundled and installed locations."""
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 class OnnxDualEncoderIMEReranker:
@@ -197,10 +207,7 @@ class OnnxDualEncoderIMEReranker:
         self.context_cache_signature: tuple[str, ...] = ()
         self._cache_lock = threading.RLock()
         self._model_lock = threading.Lock()
-        model_stat = Path(self.model_path).stat()
-        model_key = (
-            f"{self.model_path}|{model_stat.st_size}|{model_stat.st_mtime_ns}"
-        )
+        model_key = _model_fingerprint(Path(self.model_path))
         store_override = os.environ.get("YAMATANA_CANDIDATE_STORE")
         store_path = Path(
             candidate_store_path
@@ -215,10 +222,10 @@ class OnnxDualEncoderIMEReranker:
             try:
                 self.candidate_warmup_limit = max(0, int(configured_warmup))
             except ValueError:
-                self.candidate_warmup_limit = 100_000
+                self.candidate_warmup_limit = 500_000
         else:
             # Standalone/unit-test construction stays lazy.  The resident
-            # named-pipe process opts into the 100k startup warmup explicitly
+            # named-pipe process opts into the 500k background warmup explicitly
             # below, so one-shot callers never launch a bulk ONNX worker.
             self.candidate_warmup_limit = 0
 
@@ -231,8 +238,8 @@ class OnnxDualEncoderIMEReranker:
         self._context_prefetch_signature: tuple[str, ...] = ()
 
         # This is deliberately best-effort and daemonized.  It fills the
-        # persistent dictionary from the packaged homophone vocabulary while
-        # the tray is idle; live candidate/context prefetch takes priority.
+        # on-disk dictionary from the packaged homophone vocabulary while
+        # yielding to live candidate/context prefetch.
         self._candidate_warmup_worker: Optional[threading.Thread] = None
         if self.candidate_warmup_limit > 0:
             self._candidate_warmup_worker = threading.Thread(
@@ -431,9 +438,12 @@ class OnnxDualEncoderIMEReranker:
             LOG.warning("could not read candidate vocabulary %s: %s", path, exc)
 
     def _warm_candidate_dictionary(self) -> None:
-        """Fill the resident/persistent candidate dictionary opportunistically."""
+        """Fill the persistent candidate dictionary opportunistically."""
         # Let the pipe become ready before doing any bulk work.
         time.sleep(0.2)
+        if not self.candidate_store.enabled:
+            LOG.warning("candidate dictionary warmup skipped: persistent store unavailable")
+            return
         batch: list[str] = []
         seen_count = 0
         batch_size = 256
@@ -446,11 +456,19 @@ class OnnxDualEncoderIMEReranker:
                 if len(batch) < batch_size:
                     continue
                 self._wait_for_live_prefetch()
-                self.preload_candidates(batch)
+                missing = self.candidate_store.missing_words(batch)
+                if missing:
+                    self.candidate_store.put_many(
+                        missing, self.encode_texts(missing, max_length=16)
+                    )
                 batch.clear()
             if batch:
                 self._wait_for_live_prefetch()
-                self.preload_candidates(batch)
+                missing = self.candidate_store.missing_words(batch)
+                if missing:
+                    self.candidate_store.put_many(
+                        missing, self.encode_texts(missing, max_length=16)
+                    )
             LOG.info(
                 "candidate dictionary warmup complete: %s words, persistent=%s, stored=%s",
                 seen_count, self.candidate_store.enabled, self.candidate_store.count(),
