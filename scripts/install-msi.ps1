@@ -17,21 +17,24 @@ function Resolve-MsiPath {
     return $candidate.Path
   }
 
-  $releaseDir = Join-Path $PSScriptRoot '..\release'
-  $latest = Get-ChildItem -LiteralPath $releaseDir -Filter 'Yamatana-AI-IME-MOZC-Ver-*.msi' -File |
-    Sort-Object LastWriteTime -Descending |
-    Select-Object -First 1
-  if (-not $latest) {
-    throw "インストールするMSIが見つかりません: $releaseDir"
+  # The script is copied into the same folder as the MSI for distribution;
+  # the source-tree build also keeps its MSI under ../release.
+  $locations = @($PSScriptRoot, (Join-Path $PSScriptRoot '..\release'))
+  foreach ($directory in $locations) {
+    if (-not (Test-Path -LiteralPath $directory -PathType Container)) { continue }
+    $latest = Get-ChildItem -LiteralPath $directory -Filter 'Yamatana-AI-IME-MOZC-Ver-*.msi' -File |
+      Sort-Object LastWriteTime -Descending |
+      Select-Object -First 1
+    if ($latest) { return $latest.FullName }
   }
-  return $latest.FullName
+  throw "インストールするMSIが見つかりません。次のフォルダーを確認してください: $($locations -join ', ')"
 }
 
 function Get-InstallMessage {
   param([int]$ExitCode)
 
   switch ($ExitCode) {
-    0    { return 'インストールが完了しました。' }
+    0    { return 'インストールが完了しました。IMEが表示されない場合はサインアウトまたは再起動してください。' }
     3010 { return 'インストールは成功しました。PCの再起動が必要です。' }
     1641 { return 'インストールは成功しました。PCの再起動が必要です。' }
     1602 { return 'インストールはキャンセルされました。' }
@@ -48,10 +51,10 @@ Write-Host "Fumiori AI IME をインストールします: $resolvedMsi"
 Write-Host "インストールログ: $logPath"
 
 $process = Start-Process -FilePath $msiexec -Wait -PassThru -ArgumentList @(
-  '/i', $resolvedMsi,
+  '/i', ('"' + $resolvedMsi + '"'),
   '/passive',
   '/norestart',
-  '/L*v', $logPath
+  '/L*v', ('"' + $logPath + '"')
 )
 $exitCode = [int]$process.ExitCode
 

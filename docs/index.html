@@ -43,11 +43,11 @@
       <div class="hero-gridlines" aria-hidden="true"></div>
       <div class="shell hero-grid">
         <div class="hero-copy reveal">
-          <div class="eyebrow"><span class="live-dot"></span> Windows 10 / 11 · v2.0.0-beta</div>
+          <div class="eyebrow"><span class="live-dot"></span> Windows 10 / 11 · v2.1.1-beta</div>
           <h1>変換候補を、<br><span>文脈でもう一度考える。</span></h1>
           <p class="hero-lead">たとえば「はかった」。距離なら「測った」、時間なら「計った」、重さなら「量った」。Yamatana AI IMEは、Mozcが出した候補を<strong>70M級のローカルAI</strong>で並べ直します。</p>
           <div class="hero-actions">
-            <a class="button button-primary" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.0.0-beta">Windows版を試す <span aria-hidden="true">→</span></a>
+            <a class="button button-primary" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Fumiori-AI-IME-New-PC-Setup-v2.1.1-beta.zip">新規PC用セットアップを入手 <span aria-hidden="true">→</span></a>
             <a class="button button-secondary" href="#examples">変換例をもっと見る</a>
           </div>
           <div class="hero-trust">
@@ -225,7 +225,7 @@
         <div class="architecture-grid reveal">
           <article><div class="arch-number">01</div><h3>全候補を1バッチ</h3><p>Mozcの候補を一つずつ推論せず、候補リスト全体をまとめて1回のONNX Runtime実行へ渡します。</p><span class="arch-tag">FULL-CANDIDATE BATCH</span></article>
           <article><div class="arch-number">02</div><h3>DirectMLを自動選択</h3><p>対応環境ではGPU FP16を優先。利用できない場合はCPU INT8へ落とせます。</p><span class="arch-tag">GPU / CPU</span></article>
-          <article><div class="arch-number">03</div><h3>AIは初期OFF</h3><p>通常のMozc変換はそのまま使えます。必要な時だけトレイからAIモデルを読み込みます。</p><span class="arch-tag">ON DEMAND</span></article>
+          <article><div class="arch-number">03</div><h3>AIは初期ON・切替可能</h3><p>サインイン時にAIを起動します。不要な場合は通知領域からOFFにできます。</p><span class="arch-tag">LOCAL / OPTIONAL</span></article>
           <article><div class="arch-number">04</div><h3>失敗してもMozcへ</h3><p>AIランカーが停止・失敗しても、IMEそのものまで使えなくならないようフォールバックします。</p><span class="arch-tag">FAILSAFE</span></article>
         </div>
       </div>
@@ -246,11 +246,11 @@
 
     <section class="section install-section" id="start">
       <div class="shell install-layout">
-        <div class="section-heading reveal"><span class="kicker">GET STARTED</span><h2>普通のIMEとして入れて、<br>必要な時だけAIを使う。</h2><p>現在はWindows x64向けPublic Betaです。署名取得準備中のため、v2.0.0-betaのMSIは未署名です。</p><a class="button button-primary" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.0.0-beta">v2.0.0-beta をダウンロード →</a></div>
+        <div class="section-heading reveal"><span class="kicker">GET STARTED</span><h2>新しいWindows PCにも、<br>まとめてインストール。</h2><p>Windows 10/11 x64向けの未署名ベータ版です。セットアップ時は管理者権限とインターネット接続、空き容量3GB以上が必要です。入力内容やAI推論はPC内で処理されます。</p><a class="button button-primary" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Fumiori-AI-IME-New-PC-Setup-v2.1.1-beta.zip">新規PC用セットアップZIPを入手 →</a><p><small>既にインストール済みの方は<a href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta">v2.1.1-beta更新用ZIP</a>をご利用ください。更新用ZIP単体では新規インストールできません。</small></p></div>
         <ol class="install-steps reveal">
-          <li><span>01</span><div><strong>MSIをインストール</strong><p>GitHub Releasesからx64版を取得します。</p></div></li>
-          <li><span>02</span><div><strong>Win + Spaceで切り替え</strong><p>Yamatana AI IME (MOZC Ver) を選択します。</p></div></li>
-          <li><span>03</span><div><strong>トレイからAIをON</strong><p>初期状態はOFF。必要な時だけ70Mモデルを読み込みます。</p></div></li>
+          <li><span>01</span><div><strong>ZIPを「すべて展開」</strong><p>新規PC用セットアップZIPを展開し、<code>Install-Fumiori-AI-IME.cmd</code>をダブルクリックします。</p></div></li>
+          <li><span>02</span><div><strong>管理者権限を許可</strong><p>正規のMSI（AIモデル同梱）と最新版の更新を自動取得し、SHA-256を検証して適用します。ベータ版は未署名のためWindowsの警告が出る場合があります。</p></div></li>
+          <li><span>03</span><div><strong>サインアウトまたは再起動</strong><p>セットアップの終了表示を確認し、Windowsに再サインインしてから<code>Win + Space</code>でFumiori AI IMEを選びます。再起動が必須の場合は明示します。</p></div></li>
         </ol>
       </div>
     </section>
@@ -258,7 +258,7 @@
     <section class="cta-section">
       <div class="shell cta-card reveal">
         <div><span class="kicker">PUBLIC BETA</span><h2>IMEは、使ってみないと分からない。</h2><p>普段の文章で試して、変換がおかしかったらその例を教えてください。それが次の改善データになります。</p></div>
-        <div class="cta-actions"><a class="button button-dark" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.0.0-beta">Windows版を試す →</a><a class="button button-ghost" href="https://github.com/YAMA-TANA/fumiori-ai-ime/issues">変換例・不具合を報告</a></div>
+        <div class="cta-actions"><a class="button button-dark" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.1.1-beta/Fumiori-AI-IME-New-PC-Setup-v2.1.1-beta.zip">新規PC用セットアップを入手 →</a><a class="button button-ghost" href="https://github.com/YAMA-TANA/fumiori-ai-ime/issues">変換例・不具合を報告</a></div>
       </div>
     </section>
   </main>
