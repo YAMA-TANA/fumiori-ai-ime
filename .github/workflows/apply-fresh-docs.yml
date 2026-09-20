@@ -1,0 +1,43 @@
+name: Apply clean-PC installation documentation
+on:
+  push:
+    branches: [fix/fresh-pc-installer-20260920]
+    paths: ['.github/workflows/apply-fresh-docs.yml']
+permissions:
+  contents: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/fresh-pc-installer-20260920
+      - name: Apply deterministic documentation edits
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('scripts/update_fresh_install_docs.py')
+          s=p.read_text(encoding='utf-8')
+          assert "'<span>AIは初期OFF</span>" in s
+          s=s.replace('<span>AIは初期OFF</span>', '<h3>AIは初期OFF</h3>')
+          s=s.replace('<span>AIは初期ON・切替可能</span>', '<h3>AIは初期ON・切替可能</h3>')
+          p.write_text(s, encoding='utf-8')
+          PY
+          python3 scripts/update_fresh_install_docs.py
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('docs/index.html').read_text(encoding='utf-8')
+          asset='Fumiori-AI-IME-New-PC-Setup-v2.1.1-beta.zip'
+          assert s.count(asset)==3
+          assert 'releases/tag/v2.0.0-beta' not in s
+          assert 'AIは初期OFF' not in s
+          for file in ('README.md','docs/README_DISTRIBUTION_JA.md','RELEASE_NOTES_v2.1.1-beta.md'):
+            assert asset in Path(file).read_text(encoding='utf-8'),file
+          print('Website and three install docs verified')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add scripts/update_fresh_install_docs.py docs/index.html README.md docs/README_DISTRIBUTION_JA.md RELEASE_NOTES_v2.1.1-beta.md
+          git commit -m 'Update Pages download, first-install steps and release guidance'
+          git push origin HEAD:fix/fresh-pc-installer-20260920
