@@ -11,6 +11,7 @@ def test_candidate_vectors_round_trip_as_float16(tmp_path):
     store = PersistentEmbeddingStore(path, "model-v1")
     store.put_many(["測る", "図る"], original)
     assert store.count() == 2
+    assert store.missing_words(["測る", "図る", "ない", "ない"]) == ["ない"]
 
     restored = store.get_many(["図る", "測る", "ない"])
     assert set(restored) == {"測る", "図る"}
@@ -22,10 +23,13 @@ def test_candidate_vectors_round_trip_as_float16(tmp_path):
     bulk_vectors = np.zeros((len(bulk_words), 384), dtype=np.float32)
     store.put_many(bulk_words, bulk_vectors)
     assert len(store.get_many(bulk_words)) == len(bulk_words)
+    assert store.missing_words(bulk_words + ["未登録"]) == ["未登録"]
 
 
 def test_model_generation_does_not_reuse_old_vectors(tmp_path):
     path = tmp_path / "candidate_embeddings.sqlite3"
     store = PersistentEmbeddingStore(path, "model-v1")
     store.put_many(["測る"], np.ones((1, 384), dtype=np.float32))
-    assert PersistentEmbeddingStore(path, "model-v2").get_many(["測る"]) == {}
+    replacement = PersistentEmbeddingStore(path, "model-v2")
+    assert replacement.get_many(["測る"]) == {}
+    assert replacement.missing_words(["測る"]) == ["測る"]

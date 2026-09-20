@@ -800,7 +800,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
             ranker = OnnxDualEncoderIMEReranker(
                 settings=product_settings,
                 model_path=selected_model,
-                candidate_warmup_limit=100_000 if args.pipe else 0,
+                candidate_warmup_limit=500_000 if args.pipe else 0,
             )
             LOG.info(
                 "Dual-Encoder 70M ONNX model loaded in %.1f ms (device=%s, model=%s)",

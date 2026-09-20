@@ -611,7 +611,7 @@ TEST(AiRewriterTest, RankerWinnerMovesToCandidateZero) {
             0);
 }
 
-TEST(AiRewriterTest, SendsAtMostFifteenDistinctSurfacesToRanker) {
+TEST(AiRewriterTest, SendsAtMostTenDistinctSurfacesToRanker) {
   const std::wstring pipe_name =
       L"\\\\.\\pipe\\yamatana_ai_rewriter_candidate_limit_test";
   FakeRankerServer server(pipe_name, "c8");
@@ -634,7 +634,7 @@ TEST(AiRewriterTest, SendsAtMostFifteenDistinctSurfacesToRanker) {
   EXPECT_EQ(segments.segment(0).candidate(0).value, "候補8");
   const std::vector<size_t> counts = server.candidate_counts();
   ASSERT_EQ(counts.size(), 1);
-  EXPECT_EQ(counts[0], 15);
+  EXPECT_EQ(counts[0], 10);
 }
 
 TEST(AiRewriterTest, DuplicateSurfacesAreNotSentAsSeparateChoices) {

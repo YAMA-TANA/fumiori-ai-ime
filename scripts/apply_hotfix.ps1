@@ -31,8 +31,8 @@ foreach ($source in @($RuntimeSource, $ServerSource)) {
     }
 }
 
-# A Mozc-only update can otherwise pair a new 15-candidate sender with an
-# older frozen Python runtime that still rejects those requests.
+# A Mozc-only update can pair a sender with an older frozen Python runtime
+# whose candidate limit differs. Deploy both sides from the same build.
 $ProtocolSource = Join-Path $Root 'ranker\protocol.py'
 if ((Test-Path -LiteralPath $ProtocolSource) -and
     (Get-Item -LiteralPath $RuntimeSource).LastWriteTime -lt

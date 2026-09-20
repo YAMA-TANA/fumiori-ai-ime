@@ -71,6 +71,29 @@ class PersistentEmbeddingStore:
     def enabled(self) -> bool:
         return self._connection is not None
 
+    def missing_words(self, words: Iterable[str]) -> list[str]:
+        """Find vectors absent from this model generation without loading blobs."""
+        unique = list(dict.fromkeys(str(word) for word in words if str(word)))
+        if not unique or self._connection is None:
+            return unique
+        present: set[str] = set()
+        try:
+            with self._lock:
+                for offset in range(0, len(unique), 400):
+                    chunk = unique[offset:offset + 400]
+                    placeholders = ",".join("?" for _ in chunk)
+                    rows = self._connection.execute(
+                        f"SELECT word FROM candidate_embeddings WHERE model_key = ? "
+                        f"AND dimension = ? AND length(embedding) = ? "
+                        f"AND word IN ({placeholders})",
+                        [self.model_key, self.dimension, self.dimension * 2, *chunk],
+                    ).fetchall()
+                    present.update(str(row[0]) for row in rows)
+        except sqlite3.Error as exc:
+            LOG.warning("could not inspect candidate embedding store: %s", exc)
+            return unique
+        return [word for word in unique if word not in present]
+
     def get_many(self, words: Iterable[str]) -> Mapping[str, np.ndarray]:
         unique = list(dict.fromkeys(str(word) for word in words if str(word)))
         if not unique or self._connection is None:
