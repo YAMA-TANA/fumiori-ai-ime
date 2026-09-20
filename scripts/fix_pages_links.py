@@ -17,6 +17,8 @@ SELF = Path(__file__).resolve()
 
 
 def rewrite(text: str) -> str:
+    # Also rewrite scheme-less repository links displayed in promotional images.
+    text = text.replace("github.com/YAMA-TANA/yamatana-ai-ime", f"github.com/YAMA-TANA/{NEW}")
     for host in (
         r"https?://(?:www\.)?github\.com/YAMA-TANA/",
         r"https?://api\.github\.com/repos/YAMA-TANA/",
