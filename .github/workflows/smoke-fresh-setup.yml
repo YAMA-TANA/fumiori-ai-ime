@@ -1,8 +1,15 @@
 name: Smoke test full clean Windows installation
 on:
+  pull_request:
+    paths:
+      - 'scripts/fresh-install/**'
+      - '.github/workflows/smoke-fresh-setup.yml'
   push:
-    branches: [fix/fresh-pc-installer-20260920]
-    paths: ['.github/workflows/smoke-fresh-setup.yml']
+    branches: [main]
+    paths:
+      - 'scripts/fresh-install/**'
+      - '.github/workflows/smoke-fresh-setup.yml'
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
