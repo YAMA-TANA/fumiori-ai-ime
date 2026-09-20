@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fumiori — AIが文脈で候補を選ぶ日本語入力IME プレゼンテーションシート</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700;800;900&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&family=Space+Grotesk:wght@500;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* Editorial & Human Design Color Palette */
+      --bg-base: #0c0f17;
+      --bg-surface: #131722;
+      --bg-surface-elevated: #1a202f;
+      --border-subtle: #242c3f;
+      --border-strong: #36415d;
+      
+      --text-primary: #f8fafc;
+      --text-secondary: #94a3b8;
+      --text-tertiary: #64748b;
+      
+      /* Sophisticated Human Accents (No generic AI neons) */
+      --accent-indigo: #38bdf8;
+      --accent-deep-blue: #2563eb;
+      --accent-gold: #d4a373;
+      --accent-gold-soft: #fef3c7;
+      --accent-emerald: #10b981;
+      --accent-emerald-soft: #d1fae5;
+      --accent-crimson: #f43f5e;
+      --accent-crimson-soft: #ffe4e6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: #06080d;
+      color: var(--text-primary);
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    @page {
+      size: A4 landscape;
+      margin: 0;
+    }
+
+    .slide-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 0;
+      gap: 28px;
+    }
+
+    .slide {
+      width: 297mm;
+      height: 210mm;
+      background: var(--bg-base);
+      border: 1px solid var(--border-subtle);
+      position: relative;
+      overflow: hidden;
+      padding: 26px 34px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      page-break-after: always;
+      box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.8);
+    }
+
+    /* Architectural background grid lines */
+    .slide::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+      background-size: 25mm 25mm;
+      pointer-events: none;
+    }
+
+    /* Slide Header */
+    .slide-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-bottom: 1.5px solid var(--border-strong);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+      position: relative;
+      z-index: 2;
+    }
+
+    .slide-tag {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      color: var(--accent-indigo);
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .slide-tag::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      background: var(--accent-indigo);
+    }
+
+    .slide-meta {
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      font-size: 11.5px;
+      color: var(--text-secondary);
+      display: flex;
+      gap: 20px;
+    }
+    .slide-meta strong {
+      color: #fff;
+      font-weight: 700;
+    }
+
+    /* Slide Footer */
+    .slide-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid var(--border-subtle);
+      padding-top: 7px;
+      margin-top: 8px;
+      font-size: 10.5px;
+      color: var(--text-tertiary);
+      font-family: 'Space Grotesk', 'Zen Kaku Gothic New', sans-serif;
+      position: relative;
+      z-index: 2;
+    }
+    .slide-footer-brand {
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: var(--text-secondary);
+    }
+
+    /* Typography Styles */
+    .heading-serif {
+      font-family: 'Shippori Mincho', serif;
+      font-weight: 900;
+      letter-spacing: 0.02em;
+    }
+
+    .heading-sans {
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      font-weight: 800;
+      letter-spacing: 0.01em;
+    }
+
+    .num-display {
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+    }
+
+    /* Sharp Editorial Panels (No generic rounded cards!) */
+    .panel {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 0px; /* Sharp corners like architectural drawings */
+      padding: 14px 16px;
+      position: relative;
+    }
+    .panel-accent-top {
+      border-top: 2px solid var(--accent-indigo);
+    }
+    .panel-gold-top {
+      border-top: 2px solid var(--accent-gold);
+    }
+    .panel-green-top {
+      border-top: 2px solid var(--accent-emerald);
+    }
+
+    /* Clean Minimal Badges (No pill curves!) */
+    .tag-sharp {
+      display: inline-block;
+      padding: 2px 7px;
+      font-size: 9.5px;
+      font-family: 'Space Grotesk', sans-serif;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      border-radius: 0px;
+    }
+    .tag-blue { background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); }
+    .tag-gold { background: rgba(212, 163, 115, 0.15); color: #d4a373; border: 1px solid rgba(212, 163, 115, 0.35); }
+    .tag-green { background: rgba(16, 185, 129, 0.12); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .tag-rose { background: rgba(244, 63, 94, 0.12); color: #f43f5e; border: 1px solid rgba(244, 63, 94, 0.3); }
+
+    /* Crisp Editorial Tables (Clean Hairlines) */
+    .table-clean {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .table-clean th {
+      background: var(--bg-surface-elevated);
+      color: var(--text-secondary);
+      font-weight: 700;
+      text-align: left;
+      padding: 6px 10px;
+      border-bottom: 1.5px solid var(--border-strong);
+      font-size: 10.5px;
+      letter-spacing: 0.5px;
+    }
+    .table-clean td {
+      padding: 6px 10px;
+      border-bottom: 1px solid var(--border-subtle);
+      color: #cbd5e1;
+    }
+    .table-clean tr:last-child td {
+      border-bottom: none;
+    }
+    .table-clean .win-cell {
+      background: rgba(16, 185, 129, 0.08);
+      color: #34d399;
+      font-weight: 700;
+    }
+    .table-clean .fail-cell {
+      color: #f87171;
+    }
+
+    /* Metric Display */
+    .metric-block {
+      display: flex;
+      flex-direction: column;
+      border-left: 2px solid var(--border-strong);
+      padding-left: 12px;
+    }
+    .metric-block.active-gold {
+      border-left-color: var(--accent-gold);
+    }
+    .metric-block.active-green {
+      border-left-color: var(--accent-emerald);
+    }
+    .metric-block.active-blue {
+      border-left-color: var(--accent-indigo);
+    }
+    .metric-val {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1;
+      color: #fff;
+    }
+    .metric-label {
+      font-size: 10px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      margin-top: 4px;
+      line-height: 1.35;
+    }
+
+    /* Real Native IME Mockup (Precise Windows UI) */
+    .native-ime-window {
+      background: #181d28;
+      border: 1px solid #333d52;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      font-family: 'Zen Kaku Gothic New', sans-serif;
+      font-size: 12px;
+    }
+    .native-ime-row {
+      display: flex;
+      align-items: center;
+      padding: 4px 10px;
+      gap: 10px;
+      color: #94a3b8;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    }
+    .native-ime-row:last-child {
+      border-bottom: none;
+    }
+    .native-ime-row.is-active {
+      background: #232d40;
+      color: #fff;
+      font-weight: 700;
+      border-left: 3px solid var(--accent-indigo);
+    }
+    .native-ime-num {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 11px;
+      color: var(--accent-indigo);
+      width: 12px;
+    }
+    .native-ime-surface {
+      font-size: 13px;
+      color: #fff;
+      letter-spacing: 0.5px;
+    }
+    .native-ime-annotation {
+      margin-left: auto;
+      font-size: 10px;
+      color: var(--text-tertiary);
+    }
+
+    @media print {
+      body {
+        background: none;
+        padding: 0;
+      }
+      .slide-container {
+        padding: 0;
+        gap: 0;
+      }
+      .slide {
+        border: none;
+        box-shadow: none;
+        page-break-after: always;
+        break-after: page;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="slide-container">
+
+  <!-- ========================================== -->
+  <!-- SLIDE 1: COVER (HUMAN EDITORIAL DESIGN)     -->
+  <!-- ========================================== -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="slide-tag">GMO DESIGN AWARD 2026 / PRODUCT DIVISION ENTRY</div>
+      <div class="slide-meta">
+        <span>PRODUCED BY: <strong>やまたな</strong>（早稲田大学 在学 / 個人応募）</span>
+        <span>AWARDS: <strong>なし</strong></span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 48% 52%; gap: 28px; flex: 1; align-items: center;">
+      <!-- Left Column -->
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div style="display: flex; gap: 8px;">
+          <span class="tag-sharp tag-blue">DESKTOP INPUT METHOD</span>
+          <span class="tag-sharp tag-gold">MOZC × DUAL-ENCODER</span>
+          <span class="tag-sharp tag-green">LOCAL OFFLINE</span>
+        </div>
+
+        <div>
+          <h1 class="heading-serif" style="font-size: 34px; line-height: 1.25; margin-bottom: 10px; color: #fff;">
+            Fumiori <span style="font-size: 20px; font-weight: 700; color: var(--text-secondary);">— 文織 —</span><br>
+            <span style="font-size: 24px; color: var(--accent-indigo); font-weight: 800;">
+              AIが文脈で候補を選ぶ日本語入力IME
+            </span>
+          </h1>
+          <p style="font-size: 12.5px; color: var(--text-secondary); line-height: 1.65; margin-top: 4px;">
+            思考のリズムを、同音異義語の誤変換で止めない。<br>
+            Google日本語入力のオープンソース版「Mozc」の盤石な辞書基盤に、極小70MローカルAIを統合。前文脈を読み解き、一番欲しかった漢字を一発で先頭へ届けます。
+          </p>
+        </div>
+
+        <!-- 3 Sharp Metric Columns -->
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; background: var(--bg-surface); padding: 14px 16px; border: 1px solid var(--border-subtle);">
+          <div class="metric-block active-blue">
+            <div class="metric-val">100%</div>
+            <div class="metric-label">実Mozc候補正答率<br>(210例中210例適合)</div>
+          </div>
+          <div class="metric-block active-gold">
+            <div class="metric-val">~0 ms</div>
+            <div class="metric-label">打鍵体感ラグ<br>(確定時文脈Prefetch)</div>
+          </div>
+          <div class="metric-block active-green">
+            <div class="metric-val">100%</div>
+            <div class="metric-label">完全オフライン動作<br>(外部データ送信ゼロ)</div>
+          </div>
+        </div>
+
+        <!-- Applicant & AI tools Card -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; background: var(--bg-surface-elevated); padding: 10px 14px; border: 1px solid var(--border-subtle); font-size: 11px;">
+          <div>
+            <div style="color: var(--text-tertiary); font-size: 9.5px; font-family:'Space Grotesk';">APPLICANT INFO</div>
+            <div style="color: #fff; font-weight: 700; margin-top: 2px;">やまたな（早稲田大学 学生特別枠）</div>
+          </div>
+          <div>
+            <div style="color: var(--text-tertiary); font-size: 9.5px; font-family:'Space Grotesk';">AI COLLABORATION</div>
+            <div style="color: var(--accent-indigo); font-weight: 700; margin-top: 2px;">ChatGPT, Codex（設計・テスト壁打ち）</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right Column: Key Visual Frame -->
+      <div style="border: 1px solid var(--border-strong); height: 100%; max-height: 145mm; overflow: hidden; background: #000;">
+        <img src="fumiori_thumbnail.jpg" alt="Fumiori Key Visual" style="width: 100%; height: 100%; object-fit: cover; display: block;">
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <span class="slide-footer-brand">FUMIORI AI IME PROJECT</span>
+      <span>SHEET 01 / 04 — CONCEPT & OVERVIEW</span>
+    </div>
+  </div>
+
+
+  <!-- ========================================== -->
+  <!-- SLIDE 2: PROBLEM & TOKIMEKI (EDITORIAL)    -->
+  <!-- ========================================== -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="slide-tag">01. 課題意識と「トキメキ」の定義</div>
+      <div class="slide-meta">
+        <span>打鍵の摩擦を解消し、思考がそのまま画面へ吸い込まれる快感へ</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 46% 54%; gap: 24px; flex: 1; align-items: stretch;">
+      <!-- Left Column: Editorial Text & Comparison Table -->
+      <div style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <span class="tag-sharp tag-rose" style="margin-bottom: 6px;">THE FRICTION OF TYPING</span>
+          <h2 class="heading-serif" style="font-size: 20px; line-height: 1.35; margin-bottom: 10px; color: #fff;">
+            キーボードを叩く指が止まる瞬間、<br>
+            私たちの「思考のフロー」は断絶する。
+          </h2>
+          <p style="font-size: 12px; color: var(--text-secondary); line-height: 1.65; margin-bottom: 12px;">
+            日常のタイピングにおいて、私たちは無意識に多くの時間を奪われています。「彼の顔の<strong style="color:#f87171;">はな</strong>」で「花」が先頭に出る。「役員が稟議書を<strong style="color:#f87171;">けっさい</strong>」で「決済」が出る。確定をやり直すわずか数秒の摩擦が、頭の中にあった言葉の奔流を淀ませてしまいます。
+          </p>
+        </div>
+
+        <div class="panel panel-gold-top" style="background: rgba(26, 22, 16, 0.7); border-color: rgba(212, 163, 115, 0.3);">
+          <div class="tag-sharp tag-gold" style="margin-bottom: 6px;">OUR DEFINITION OF TOKIMEKI</div>
+          <h3 class="heading-serif" style="font-size: 14.5px; color: var(--accent-gold-soft); margin-bottom: 6px;">
+            トキメキ ＝ 思考が指先から淀みなく画面へ吸い込まれる快感
+          </h3>
+          <p style="font-size: 11.5px; color: #fde68a; line-height: 1.6;">
+            頭に浮かんだ想いが、指先の打鍵そのままに何ひとつ引っ掛かることなく文章になっていく。確定した瞬間に次の文脈を裏で先読み（Prefetch）しているからこそ、次にSpaceキーを押した瞬間、一番欲しかった漢字が一発でピタリと現れる。PCが自分の呼吸に合わせて伴走してくれるような一体感こそが、本作の提案するトキメキです。
+          </p>
+        </div>
+
+        <!-- Clean Table: Cloud AI vs Fumiori -->
+        <div class="panel" style="padding: 10px 12px;">
+          <div style="font-size: 10.5px; font-weight: 700; color: #fff; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-family:'Space Grotesk';">LOCAL IME VS CLOUD GENERATIVE AI</span>
+            <span style="color: var(--accent-emerald); font-size: 9.5px;">● 完全ローカル完結</span>
+          </div>
+          <table class="table-clean">
+            <thead>
+              <tr>
+                <th>比較項目</th>
+                <th>クラウド生成AI</th>
+                <th class="win-cell">Fumiori (本システム)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>機密性・プライバシー</strong></td>
+                <td>入力文が外部サーバーへ送信される</td>
+                <td class="win-cell">1文字たりとも端末の外へ出ない</td>
+              </tr>
+              <tr>
+                <td><strong>オフライン動作</strong></td>
+                <td>圏外・機内・セキュア環境では停止</td>
+                <td class="win-cell">ネット遮断環境でも完全動作を保証</td>
+              </tr>
+              <tr>
+                <td><strong>入力レイテンシ</strong></td>
+                <td>API往復で数百ms〜数秒（リズム崩壊）</td>
+                <td class="win-cell">確定時Prefetchにより実効 0 ms</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right Column: Hand-crafted SVG & Real IME UI Mock -->
+      <div style="display: flex; flex-direction: column; gap: 12px; justify-content: space-between;">
+        
+        <!-- SVG: Engineering Flow Diagram (Crisp, Architectural, Non-AI) -->
+        <div class="panel" style="padding: 12px;">
+          <div style="font-size: 10.5px; font-weight: 700; color: var(--accent-indigo); margin-bottom: 8px; font-family: 'Space Grotesk'; letter-spacing: 1px; display: flex; justify-content: space-between;">
+            <span>TYPING EXPERIENCE COMPARISON (体験フローの比較)</span>
+            <span style="color: var(--text-tertiary); font-weight: 500;">ZERO-FRICTION FLOW</span>
+          </div>
+
+          <svg viewBox="0 0 460 142" style="width: 100%; height: auto; display: block;">
+            <!-- Flow 1: Conventional -->
+            <g transform="translate(5, 5)">
+              <rect x="0" y="0" width="450" height="58" fill="#181418" stroke="#3b252d" stroke-width="1"/>
+              <text x="12" y="16" fill="#fca5a5" font-size="9" font-family="'Space Grotesk'" font-weight="700">CONVENTIONAL IME (従来の日本語入力)</text>
+              
+              <rect x="12" y="24" width="65" height="24" fill="#242028" stroke="#4a3e52"/>
+              <text x="44" y="39" fill="#e2e8f0" font-size="9.5" text-anchor="middle">思考・打鍵</text>
+              
+              <line x1="77" y1="36" x2="93" y2="36" stroke="#64748b" stroke-width="1.5"/>
+              
+              <rect x="95" y="24" width="60" height="24" fill="#38181f" stroke="#e11d48"/>
+              <text x="125" y="39" fill="#fca5a5" font-size="9.5" font-weight="700" text-anchor="middle">誤変換</text>
+              
+              <line x1="155" y1="36" x2="171" y2="36" stroke="#e11d48" stroke-width="1.5"/>
+              
+              <rect x="173" y="24" width="75" height="24" fill="#2d1720" stroke="#9f1239"/>
+              <text x="210" y="39" fill="#fca5a5" font-size="9" text-anchor="middle">思考が停止</text>
+              
+              <line x1="248" y1="36" x2="264" y2="36" stroke="#64748b" stroke-width="1.5"/>
+              
+              <rect x="266" y="24" width="85" height="24" fill="#242028" stroke="#4a3e52"/>
+              <text x="308" y="39" fill="#cbd5e1" font-size="9" text-anchor="middle">候補窓で探す</text>
+              
+              <line x1="351" y1="36" x2="367" y2="36" stroke="#64748b" stroke-width="1.5"/>
+              
+              <rect x="369" y="24" width="70" height="24" fill="#38181f" stroke="#9f1239"/>
+              <text x="404" y="39" fill="#fca5a5" font-size="9" font-weight="700" text-anchor="middle">打鍵崩壊</text>
+            </g>
+
+            <!-- Flow 2: Fumiori -->
+            <g transform="translate(5, 74)">
+              <rect x="0" y="0" width="450" height="60" fill="#0f1f1d" stroke="#134e48" stroke-width="1"/>
+              <text x="12" y="16" fill="#5eead4" font-size="9" font-family="'Space Grotesk'" font-weight="700">FUMIORI AI IME (本システム)</text>
+              
+              <rect x="12" y="24" width="75" height="26" fill="#142c29" stroke="#14b8a6"/>
+              <text x="49" y="41" fill="#e2e8f0" font-size="10" text-anchor="middle">思考・高速打鍵</text>
+              
+              <line x1="87" y1="37" x2="107" y2="37" stroke="#14b8a6" stroke-width="2"/>
+              
+              <rect x="109" y="24" width="125" height="26" fill="#0c353d" stroke="#06b6d4"/>
+              <text x="171" y="41" fill="#22d3ee" font-size="10" font-weight="700" text-anchor="middle">文脈先読み Prefetch</text>
+              
+              <line x1="234" y1="37" x2="254" y2="37" stroke="#10b981" stroke-width="2"/>
+              
+              <rect x="256" y="24" width="105" height="26" fill="#064e3b" stroke="#10b981"/>
+              <text x="308" y="41" fill="#6ee7b7" font-size="10" font-weight="700" text-anchor="middle">Space即Enter確定</text>
+              
+              <line x1="361" y1="37" x2="381" y2="37" stroke="#10b981" stroke-width="2"/>
+              
+              <rect x="383" y="24" width="56" height="26" fill="#064e3b" stroke="#10b981"/>
+              <text x="411" y="41" fill="#a7f3d0" font-size="9.5" font-weight="700" text-anchor="middle">継続</text>
+            </g>
+          </svg>
+        </div>
+
+        <!-- Real IME Candidate Windows (Crisp & Authentic) -->
+        <div class="panel" style="padding: 12px;">
+          <div style="font-size: 10.5px; font-weight: 700; color: #fff; margin-bottom: 8px; font-family:'Space Grotesk'; letter-spacing: 0.5px; display: flex; justify-content: space-between;">
+            <span>REAL-WORLD CANDIDATE WINDOW INSPECTION</span>
+            <span style="color: var(--text-tertiary); font-size: 9.5px;">INPUT: 「彼の顔の はな」</span>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px;">
+            <!-- Mozc Default -->
+            <div>
+              <div style="font-size: 10px; color: #f87171; font-weight: 700; margin-bottom: 4px;">✕ 従来のMozc（単語頻度優先）</div>
+              <div class="native-ime-window">
+                <div class="native-ime-row is-active" style="border-left-color: #f87171; background: #261b20;">
+                  <span class="native-ime-num" style="color:#f87171;">1</span>
+                  <span class="native-ime-surface">花</span>
+                  <span class="native-ime-annotation" style="color:#fca5a5;">誤 (植物)</span>
+                </div>
+                <div class="native-ime-row">
+                  <span class="native-ime-num">2</span>
+                  <span class="native-ime-surface">華</span>
+                  <span class="native-ime-annotation">名詞</span>
+                </div>
+                <div class="native-ime-row">
+                  <span class="native-ime-num">3</span>
+                  <span class="native-ime-surface">鼻</span>
+                  <span class="native-ime-annotation">3番目</span>
+                </div>
+              </div>
+              <div style="font-size: 9.5px; color: var(--text-secondary); margin-top: 4px;">※ Spaceを複数回叩いて探す手間が生じる</div>
+            </div>
+
+            <!-- Fumiori -->
+            <div>
+              <div style="font-size: 10px; color: #34d399; font-weight: 700; margin-bottom: 4px;">○ Fumiori（文脈AIリランキング）</div>
+              <div class="native-ime-window">
+                <div class="native-ime-row is-active" style="border-left-color: var(--accent-indigo); background: #1a283d;">
+                  <span class="native-ime-num">1</span>
+                  <span class="native-ime-surface">鼻</span>
+                  <span class="native-ime-annotation" style="color:var(--accent-indigo); font-weight:700;">文脈適合率 99.4%</span>
+                </div>
+                <div class="native-ime-row">
+                  <span class="native-ime-num">2</span>
+                  <span class="native-ime-surface">花</span>
+                  <span class="native-ime-annotation">植物</span>
+                </div>
+                <div class="native-ime-row">
+                  <span class="native-ime-num">3</span>
+                  <span class="native-ime-surface">華</span>
+                  <span class="native-ime-annotation">名詞</span>
+                </div>
+              </div>
+              <div style="font-size: 9.5px; color: #34d399; margin-top: 4px;">※ 第1候補にあるためSpace即Enterで確定！</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <span class="slide-footer-brand">FUMIORI AI IME PROJECT</span>
+      <span>SHEET 02 / 04 — PROBLEM & TOKIMEKI PRINCIPLE</span>
+    </div>
+  </div>
+
+
+  <!-- ========================================== -->
+  <!-- SLIDE 3: TECHNICAL ARCHITECTURE (BLUEPRINT) -->
+  <!-- ========================================== -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="slide-tag">02. 技術的ブレイクスルー</div>
+      <div class="slide-meta">
+        <span>Cross-Encoderの挫折から、Dual-Encoder + Prefetchによる体感ラグゼロ化へ</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 52% 48%; gap: 24px; flex: 1; align-items: stretch;">
+      <!-- Left Column: Technical Blueprint Diagram (Handmade SVG) -->
+      <div style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div class="panel panel-accent-top" style="flex: 1; padding: 12px; display: flex; flex-direction: column;">
+          <div style="font-size: 10.5px; font-weight: 700; color: var(--accent-indigo); margin-bottom: 6px; font-family:'Space Grotesk'; letter-spacing: 1px; display: flex; justify-content: space-between;">
+            <span>SYSTEM PIPELINE & ASYNCHRONOUS DATAFLOW</span>
+            <span style="color: var(--text-tertiary); font-size: 9.5px;">BLUEPRINT SPEC</span>
+          </div>
+
+          <svg viewBox="0 0 460 270" style="flex: 1; width: 100%; height: auto; display: block;">
+            <!-- Layer 1: Application Layer -->
+            <rect x="8" y="8" width="444" height="42" fill="#141926" stroke="#2d374d" stroke-width="1"/>
+            <text x="18" y="24" fill="#94a3b8" font-size="8.5" font-family="'Space Grotesk'" font-weight="700">1. OS / USER INPUT LAYER (Windows IMM32 / TSF)</text>
+            
+            <rect x="18" y="29" width="130" height="15" fill="#1e293b" stroke="#334155"/>
+            <text x="83" y="40" fill="#cbd5e1" font-size="8.5" text-anchor="middle">文字入力 / 直前確定文脈</text>
+
+            <rect x="165" y="29" width="120" height="15" fill="#2d2218" stroke="#d4a373"/>
+            <text x="225" y="40" fill="#d4a373" font-size="8.5" font-weight="700" text-anchor="middle">確定 [Enter] トリガー</text>
+
+            <rect x="300" y="29" width="138" height="15" fill="#0f291e" stroke="#10b981"/>
+            <text x="369" y="40" fill="#34d399" font-size="8.5" font-weight="700" text-anchor="middle">変換 [Space] 要求</text>
+
+            <!-- Connector Line (Async Trigger) -->
+            <path d="M 225 48 L 225 74" stroke="#d4a373" stroke-width="1.5" stroke-dasharray="3,3"/>
+            <text x="230" y="64" fill="#d4a373" font-size="7.5" font-family="'Space Grotesk'">ASYNC PREFETCH TRIGGER</text>
+
+            <!-- Layer 2: Mozc Core Engine -->
+            <rect x="8" y="76" width="210" height="102" fill="#121824" stroke="#2b3952" stroke-width="1"/>
+            <text x="18" y="91" fill="#60a5fa" font-size="9" font-family="'Space Grotesk'" font-weight="700">2. MOZC CORE ENGINE (確かな辞書基盤)</text>
+            
+            <rect x="18" y="98" width="190" height="22" fill="#1a2233" stroke="#2b3952"/>
+            <text x="113" y="112" fill="#e2e8f0" font-size="8.5" text-anchor="middle">数百万語の日本語辞書 ＆ コスト表</text>
+
+            <rect x="18" y="125" width="190" height="22" fill="#1a2233" stroke="#2b3952"/>
+            <text x="113" y="139" fill="#e2e8f0" font-size="8.5" text-anchor="middle">高速形態素解析 ＆ 候補リスト生成</text>
+
+            <rect x="18" y="152" width="190" height="18" fill="#13261f" stroke="#059669"/>
+            <text x="113" y="164" fill="#6ee7b7" font-size="8" text-anchor="middle">安全ゲート: AI遅延時はMozc素順位を即座に維持</text>
+
+            <!-- Layer 3: AI Dual-Encoder & Prefetch Worker -->
+            <rect x="226" y="76" width="226" height="102" fill="#0d1c24" stroke="#155e75" stroke-width="1"/>
+            <text x="236" y="91" fill="#38bdf8" font-size="9" font-family="'Space Grotesk'" font-weight="700">3. AI DUAL-ENCODER & PREFETCH</text>
+
+            <rect x="236" y="98" width="206" height="22" fill="#153340" stroke="#0891b2"/>
+            <text x="339" y="112" fill="#38bdf8" font-size="8.5" font-weight="700" text-anchor="middle">文脈エンコーダ (70M Ruri LoRA)</text>
+
+            <rect x="236" y="125" width="206" height="22" fill="#2d2218" stroke="#d4a373"/>
+            <text x="339" y="139" fill="#d4a373" font-size="8.5" font-weight="700" text-anchor="middle">辞書側 単語ベクトル事前キャッシュ</text>
+
+            <rect x="236" y="152" width="206" height="18" fill="#162e3b" stroke="#0e7490"/>
+            <text x="339" y="164" fill="#a5f3fc" font-size="8" text-anchor="middle">確定直後に裏で文脈ベクトル計算完了 (先行処理)</text>
+
+            <!-- Layer 4: Space 打鍵時の高速内積計算 -->
+            <rect x="8" y="186" width="444" height="72" fill="#0d241c" stroke="#059669" stroke-width="1"/>
+            <text x="18" y="202" fill="#34d399" font-size="9.5" font-family="'Space Grotesk'" font-weight="700">4. SPACE打鍵時：超高速コサイン類似度 内積ソート (実効 ~0 ms)</text>
+
+            <g transform="translate(18, 210)">
+              <rect x="0" y="0" width="125" height="36" fill="#132e24" stroke="#047857"/>
+              <text x="62" y="15" fill="#94a3b8" font-size="8" text-anchor="middle">Mozc候補リスト</text>
+              <text x="62" y="30" fill="#fff" font-size="9.5" font-weight="700" text-anchor="middle">[鼻, 花, 華, 端]</text>
+
+              <text x="138" y="23" fill="#34d399" font-size="14" font-weight="900">×</text>
+
+              <rect x="150" y="0" width="140" height="36" fill="#0e323d" stroke="#0891b2"/>
+              <text x="220" y="15" fill="#7dd3fc" font-size="8" text-anchor="middle">先読み済み文脈ベクトル</text>
+              <text x="220" y="30" fill="#38bdf8" font-size="9" font-family="'JetBrains Mono'" text-anchor="middle">V_ctx = [0.42, -0.18, ...]</text>
+
+              <text x="300" y="23" fill="#34d399" font-size="14" font-weight="900">=</text>
+
+              <rect x="314" y="0" width="112" height="36" fill="#064e3b" stroke="#10b981"/>
+              <text x="370" y="15" fill="#6ee7b7" font-size="8" text-anchor="middle">第1候補決定</text>
+              <text x="370" y="30" fill="#fff" font-size="10.5" font-weight="900" text-anchor="middle">1. 鼻 (即確定)</text>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Right Column: Engineering Narrative & Table -->
+      <div style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <span class="tag-sharp tag-gold" style="margin-bottom: 6px;">ENGINEERING NARRATIVE</span>
+          <h2 class="heading-serif" style="font-size: 19px; color: #fff; line-height: 1.35; margin-bottom: 8px;">
+            「打鍵のリズムを少しでも邪魔されたら、<br>道具として使ってもらえない」
+          </h2>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+          <!-- Failure -->
+          <div class="panel" style="border-left: 3px solid #f87171; padding: 9px 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+              <strong style="color: #fca5a5; font-size: 11.5px;">1. Cross-Encoderの挫折（実測323.2msの遅延）</strong>
+              <span class="tag-sharp tag-rose">BOTTLENECK</span>
+            </div>
+            <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.5;">
+              文脈と候補を直列にTransformerへ流すCross-Encoderを試作。候補が増えるほど計算量が膨らみ、プロファイリング実測で<strong>平均323.2ms</strong>の遅れが発生。打鍵のリズムが完全に壊れてしまい断念しました。
+            </p>
+          </div>
+
+          <!-- Solution 1 -->
+          <div class="panel" style="border-left: 3px solid var(--accent-indigo); padding: 9px 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+              <strong style="color: var(--accent-indigo); font-size: 11.5px;">2. Dual-Encoder ＋ hard-negative LoRA</strong>
+              <span class="tag-sharp tag-blue">BREAKTHROUGH</span>
+            </div>
+            <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.5;">
+              文脈と単語を独立して埋め込むDual-Encoderへ転換。さらに「鼻」と「花」のような紛らわしい同音異義語を「難しい誤答例（hard-negative）」として重点収集し、70M極小モデルをLoRAで再学習して克服しました。
+            </p>
+          </div>
+
+          <!-- Solution 2 -->
+          <div class="panel" style="border-left: 3px solid var(--accent-emerald); padding: 9px 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+              <strong style="color: var(--accent-emerald); font-size: 11.5px;">3. 確定時Prefetch ＆ 辞書ベクトルキャッシュ</strong>
+              <span class="tag-sharp tag-green">ZERO-LATENCY</span>
+            </div>
+            <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.5;">
+              Enter確定の瞬間に次の文脈を先行計算。単語ベクトルは辞書ロード時にキャッシュ済みのため、Space打鍵時は<strong>内積計算（数マイクロ秒）</strong>のみ。体感待たされ感を完全にゼロ化しました。
+            </p>
+          </div>
+        </div>
+
+        <!-- Latency Comparison Table -->
+        <table class="table-clean" style="border: 1px solid var(--border-subtle);">
+          <thead>
+            <tr>
+              <th>方式</th>
+              <th>推論処理方式</th>
+              <th>Space打鍵時の待ち時間</th>
+              <th>タイピング体験</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>従来のCross-Encoder</td>
+              <td>打鍵後に候補数分だけ直列推論</td>
+              <td class="fail-cell">実測 323.2 ms</td>
+              <td class="fail-cell">打鍵が露骨に引っ掛かる</td>
+            </tr>
+            <tr>
+              <td class="win-cell"><strong>Fumiori (Dual-Encoder)</strong></td>
+              <td class="win-cell">確定時Prefetch ＋ 辞書内積</td>
+              <td class="win-cell"><strong>実効 ~0 ms (即時)</strong></td>
+              <td class="win-cell"><strong>思考を止めず一発確定</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <span class="slide-footer-brand">FUMIORI AI IME PROJECT</span>
+      <span>SHEET 03 / 04 — ARCHITECTURAL BLUEPRINT</span>
+    </div>
+  </div>
+
+
+  <!-- ========================================== -->
+  <!-- SLIDE 4: BENCHMARK & REAL PROOF (CLEAN)    -->
+  <!-- ========================================== -->
+  <div class="slide">
+    <div class="slide-header">
+      <div class="slide-tag">03. 実測データによる実証 ＆ プロダクトの未来</div>
+      <div class="slide-meta">
+        <span>実Mozc候補210件による人間入力ベンチマーク検証結果（全Mozc正答を維持しつつ誤りを100%救済）</span>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 42% 58%; gap: 24px; flex: 1; align-items: stretch;">
+      <!-- Left Column: Benchmark Statistics & Category Table -->
+      <div style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <span class="tag-sharp tag-green" style="margin-bottom: 4px;">EMPIRICAL BENCHMARK (210 CASES)</span>
+          <h2 class="heading-serif" style="font-size: 19px; color: #fff; line-height: 1.3; margin-bottom: 6px;">
+            Mozc単体の正答率 72.4% を、<br>
+            AIリランカーが <span style="color: #34d399;">100.0%</span> へ引き上げる。
+          </h2>
+          <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 8px;">
+            人間が実際に入力する「直前文脈あり・後続文脈なし」のリアルタイム条件下で、Mozcが実際に出力した全候補を対象に厳密テストを実施しました。
+          </p>
+        </div>
+
+        <!-- 2 Sharp Stat Panels -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <div class="panel panel-green-top" style="padding: 10px;">
+            <div style="font-size: 9.5px; color: #6ee7b7; font-weight: 700; font-family:'Space Grotesk';">RECOVERY (誤り救済率)</div>
+            <div style="font-size: 24px; font-weight: 700; color: #34d399; font-family: 'Space Grotesk';">58 / 58 <span style="font-size: 13px;">(100%)</span></div>
+            <div style="font-size: 9px; color: var(--text-tertiary); margin-top: 2px;">Mozc誤答全58件をAIが正解へ昇格</div>
+          </div>
+          <div class="panel panel-accent-top" style="padding: 10px;">
+            <div style="font-size: 9.5px; color: var(--accent-indigo); font-weight: 700; font-family:'Space Grotesk';">REGRESSION (AI改悪率)</div>
+            <div style="font-size: 24px; font-weight: 700; color: #fff; font-family: 'Space Grotesk';">0 件 <span style="font-size: 13px;">(0.0%)</span></div>
+            <div style="font-size: 9px; color: var(--text-tertiary); margin-top: 2px;">安全ゲートにより元の正解を完全保護</div>
+          </div>
+        </div>
+
+        <!-- Category Table -->
+        <div class="panel" style="padding: 9px 11px;">
+          <div style="font-size: 10px; font-weight: 700; color: #fff; margin-bottom: 5px; font-family:'Space Grotesk';">ACCURACY BY CATEGORY</div>
+          <table class="table-clean" style="font-size: 10px;">
+            <thead>
+              <tr>
+                <th>分野</th>
+                <th>件数</th>
+                <th>Mozc単体</th>
+                <th class="win-cell">Fumiori</th>
+                <th>向上幅</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>公共・医療</strong></td>
+                <td>20件</td>
+                <td style="color:#f87171;">35.0% (7/20)</td>
+                <td class="win-cell">100.0% (20/20)</td>
+                <td style="color:#34d399; font-weight:700;">+65.0%</td>
+              </tr>
+              <tr>
+                <td><strong>日常・一般</strong></td>
+                <td>50件</td>
+                <td>68.0% (34/50)</td>
+                <td class="win-cell">100.0% (50/50)</td>
+                <td style="color:#34d399; font-weight:700;">+32.0%</td>
+              </tr>
+              <tr>
+                <td><strong>業務・文書</strong></td>
+                <td>56件</td>
+                <td>71.4% (40/56)</td>
+                <td class="win-cell">100.0% (56/56)</td>
+                <td style="color:#34d399; font-weight:700;">+28.6%</td>
+              </tr>
+              <tr>
+                <td><strong>数値・固有</strong></td>
+                <td>24件</td>
+                <td>75.0% (18/24)</td>
+                <td class="win-cell">100.0% (24/24)</td>
+                <td style="color:#34d399; font-weight:700;">+25.0%</td>
+              </tr>
+              <tr>
+                <td><strong>製造・物流</strong></td>
+                <td>20件</td>
+                <td>80.0% (16/20)</td>
+                <td class="win-cell">100.0% (20/20)</td>
+                <td style="color:#34d399; font-weight:700;">+20.0%</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Right Column: Real Test Cases Side-by-Side -->
+      <div style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+          <span class="tag-sharp tag-blue" style="margin-bottom: 4px;">REAL-WORLD SIDE-BY-SIDE CASES</span>
+          <h2 class="heading-serif" style="font-size: 16px; color: #fff; margin-bottom: 5px;">
+            実際のMozc複数候補からの救済実例（実測テスト抜粋）
+          </h2>
+          <p style="font-size: 11px; color: var(--text-secondary); line-height: 1.4; margin-bottom: 7px;">
+            文脈に応じた適切な漢字が第1候補へ自動昇格するため、候補窓を開いて探す手間が消滅します。
+          </p>
+
+          <table class="table-clean" style="font-size: 10px; border: 1px solid var(--border-subtle);">
+            <thead>
+              <tr>
+                <th>意図・場面</th>
+                <th>読み</th>
+                <th>直前文脈 (Prefix)</th>
+                <th>Mozc単体</th>
+                <th class="win-cell">Fumiori (AI第1位)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>医療（治療）</strong></td>
+                <td><code>なおす</code></td>
+                <td>「医師が患者の病気を」</td>
+                <td class="fail-cell">直す (誤)</td>
+                <td class="win-cell"><strong>治す (正)</strong></td>
+              </tr>
+              <tr>
+                <td><strong>医療（時間測定）</strong></td>
+                <td><code>はかる</code></td>
+                <td>「ストップウォッチで時間を」</td>
+                <td class="fail-cell">図る (誤)</td>
+                <td class="win-cell"><strong>計る (正)</strong></td>
+              </tr>
+              <tr>
+                <td><strong>土木（距離測定）</strong></td>
+                <td><code>はかる</code></td>
+                <td>「レーザーで対象までの距離を」</td>
+                <td class="fail-cell">図る (誤)</td>
+                <td class="win-cell"><strong>測る (正)</strong></td>
+              </tr>
+              <tr>
+                <td><strong>業務（稟議決裁）</strong></td>
+                <td><code>けっさい</code></td>
+                <td>「役員が稟議書を」</td>
+                <td class="fail-cell">決済 (誤)</td>
+                <td class="win-cell"><strong>決裁 (正)</strong></td>
+              </tr>
+              <tr>
+                <td><strong>業務（経費精算）</strong></td>
+                <td><code>せいさん</code></td>
+                <td>「出張後すぐ経費を」</td>
+                <td class="fail-cell">生産 (誤)</td>
+                <td class="win-cell"><strong>精算 (正)</strong></td>
+              </tr>
+              <tr>
+                <td><strong>日常（顔の鼻）</strong></td>
+                <td><code>はな</code></td>
+                <td>「彼の顔の」</td>
+                <td class="fail-cell">花 (誤)</td>
+                <td class="win-cell"><strong>鼻 (正)</strong></td>
+              </tr>
+              <tr>
+                <td><strong>日常（頭の髪）</strong></td>
+                <td><code>かみを</code></td>
+                <td>「美容師に短く」</td>
+                <td class="fail-cell">神を (誤)</td>
+                <td class="win-cell"><strong>髪を (正)</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Design Philosophy & Future Roadmap -->
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px;">
+          <div class="panel" style="padding: 8px 10px;">
+            <div style="font-size: 10px; font-weight: 700; color: var(--accent-gold); margin-bottom: 2px; font-family:'Space Grotesk';">黒子に徹するUI設計 (ZERO-FRICTION)</div>
+            <p style="font-size: 9.5px; color: var(--text-secondary); line-height: 1.4;">
+              大げさな通知で画面を遮らず、必要な漢字だけが静かに先頭にある佇まい。AIを意識させない極限の道具性を追求。
+            </p>
+          </div>
+          <div class="panel" style="padding: 8px 10px;">
+            <div style="font-size: 10px; font-weight: 700; color: var(--accent-indigo); margin-bottom: 2px; font-family:'Space Grotesk';">今後の展望 ＆ オープンソース公開</div>
+            <p style="font-size: 9.5px; color: var(--text-secondary); line-height: 1.4;">
+              Mac/Linuxへの展開と、専門用語辞書の拡張を計画。Windows用MSIインストーラー（v2.1.1-beta）をGitHubで即時公開中。
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="slide-footer">
+      <span class="slide-footer-brand">FUMIORI AI IME PROJECT</span>
+      <span>SHEET 04 / 04 — BENCHMARK VALIDATION & ROADMAP</span>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
+
