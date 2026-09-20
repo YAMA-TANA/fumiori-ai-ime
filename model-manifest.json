@@ -2,7 +2,7 @@
   "schema": 1,
   "bundle": {
     "version": "v2.0.6-beta-70m-ensemble",
-    "url": "https://github.com/YAMA-TANA/yamatana-ai-ime/releases/download/v2.0.6-beta/yamatana-reranker-70m-v2.0.6-beta-ensemble.zip",
+    "url": "https://github.com/YAMA-TANA/fumiori-ai-ime/releases/download/v2.0.6-beta/yamatana-reranker-70m-v2.0.6-beta-ensemble.zip",
     "bytes": 334020271,
     "sha256": "AAE09C50CA0FAA9151BE1B59CC2675FCF794CD851932A663A7B950B669B8D0DF"
   },

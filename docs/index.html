@@ -11,8 +11,10 @@
   <title>Yamatana AI IME — 文脈を見て、変換候補を選び直す</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23e9cf45'/%3E%3Cpath d='M14 14h10l8 15 8-15h10L37 38v12H27V38z' fill='%23131a29'/%3E%3C/svg%3E">
   <style>html{background:#0d1220}body{margin:0;background:#f6f3e8;color:#172033;font-family:"Yu Gothic UI","Hiragino Sans","Noto Sans JP",system-ui,sans-serif}.hero{background:#0d1220;color:#fff}.site-header{min-height:72px}.shell{width:min(1180px,calc(100% - 40px));margin:auto}</style>
-  <link rel="stylesheet" href="/yamatana-ai-ime/styles.css?v=20260906-3">
-  <script defer src="/yamatana-ai-ime/app.js?v=20260906-3"></script>
+  <link rel="stylesheet" href="/fumiori-ai-ime/styles.css?v=20260906-3">
+  <script defer src="/fumiori-ai-ime/app.js?v=20260906-3"></script>
+  <link rel="canonical" href="https://yama-tana.github.io/fumiori-ai-ime/">
+  <meta property="og:url" content="https://yama-tana.github.io/fumiori-ai-ime/">
 </head>
 <body>
   <a class="skip-link" href="#main">本文へ移動</a>
@@ -29,7 +31,7 @@
         <a href="#performance">性能</a>
         <a href="#design">仕組み</a>
         <a href="#privacy">プライバシー</a>
-        <a class="nav-github" href="https://github.com/YAMA-TANA/yamatana-ai-ime">GitHub ↗</a>
+        <a class="nav-github" href="https://github.com/YAMA-TANA/fumiori-ai-ime">GitHub ↗</a>
       </nav>
     </div>
   </header>
@@ -45,7 +47,7 @@
           <h1>変換候補を、<br><span>文脈でもう一度考える。</span></h1>
           <p class="hero-lead">たとえば「はかった」。距離なら「測った」、時間なら「計った」、重さなら「量った」。Yamatana AI IMEは、Mozcが出した候補を<strong>70M級のローカルAI</strong>で並べ直します。</p>
           <div class="hero-actions">
-            <a class="button button-primary" href="https://github.com/YAMA-TANA/yamatana-ai-ime/releases/tag/v2.0.0-beta">Windows版を試す <span aria-hidden="true">→</span></a>
+            <a class="button button-primary" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.0.0-beta">Windows版を試す <span aria-hidden="true">→</span></a>
             <a class="button button-secondary" href="#examples">変換例をもっと見る</a>
           </div>
           <div class="hero-trust">
@@ -195,7 +197,7 @@
         <div class="benchmark-disclaimer reveal">
           <div class="disclaimer-mark">i</div>
           <p><strong>この90%台は「一般文章すべての正答率」ではありません。</strong> 学習文との文章一致・クエリ重複がないことを確認したうえで、Mozcの単純変換が苦手な文脈依存問題を120問選んだストレステストです。評価条件を隠さず公開しています。</p>
-          <a href="/yamatana-ai-ime/DISTILLATION_QUANTIZATION_AND_GPU_INFERENCE_JA.md">評価条件を読む →</a>
+          <a href="/fumiori-ai-ime/DISTILLATION_QUANTIZATION_AND_GPU_INFERENCE_JA.md">評価条件を読む →</a>
         </div>
       </div>
     </section>
@@ -237,14 +239,14 @@
           <h2>入力した文章を、変換のために外へ送らない。</h2>
           <p>前後文脈もAI推論もPC上で処理します。外部AI APIへの送信はありません。テレメトリも実装していません。</p>
           <ul class="check-list"><li>入力文・前後文脈をローカル処理</li><li>AIモデル自体に通信機能なし</li><li>AI OFF時はモデルを読み込まない</li></ul>
-          <div class="inline-links"><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/PRIVACY.md">プライバシーポリシー →</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/MODEL_CARD.md">モデルカード →</a></div>
+          <div class="inline-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/PRIVACY.md">プライバシーポリシー →</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/MODEL_CARD.md">モデルカード →</a></div>
         </div>
       </div>
     </section>
 
     <section class="section install-section" id="start">
       <div class="shell install-layout">
-        <div class="section-heading reveal"><span class="kicker">GET STARTED</span><h2>普通のIMEとして入れて、<br>必要な時だけAIを使う。</h2><p>現在はWindows x64向けPublic Betaです。署名取得準備中のため、v2.0.0-betaのMSIは未署名です。</p><a class="button button-primary" href="https://github.com/YAMA-TANA/yamatana-ai-ime/releases/tag/v2.0.0-beta">v2.0.0-beta をダウンロード →</a></div>
+        <div class="section-heading reveal"><span class="kicker">GET STARTED</span><h2>普通のIMEとして入れて、<br>必要な時だけAIを使う。</h2><p>現在はWindows x64向けPublic Betaです。署名取得準備中のため、v2.0.0-betaのMSIは未署名です。</p><a class="button button-primary" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.0.0-beta">v2.0.0-beta をダウンロード →</a></div>
         <ol class="install-steps reveal">
           <li><span>01</span><div><strong>MSIをインストール</strong><p>GitHub Releasesからx64版を取得します。</p></div></li>
           <li><span>02</span><div><strong>Win + Spaceで切り替え</strong><p>Yamatana AI IME (MOZC Ver) を選択します。</p></div></li>
@@ -256,7 +258,7 @@
     <section class="cta-section">
       <div class="shell cta-card reveal">
         <div><span class="kicker">PUBLIC BETA</span><h2>IMEは、使ってみないと分からない。</h2><p>普段の文章で試して、変換がおかしかったらその例を教えてください。それが次の改善データになります。</p></div>
-        <div class="cta-actions"><a class="button button-dark" href="https://github.com/YAMA-TANA/yamatana-ai-ime/releases/tag/v2.0.0-beta">Windows版を試す →</a><a class="button button-ghost" href="https://github.com/YAMA-TANA/yamatana-ai-ime/issues">変換例・不具合を報告</a></div>
+        <div class="cta-actions"><a class="button button-dark" href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.0.0-beta">Windows版を試す →</a><a class="button button-ghost" href="https://github.com/YAMA-TANA/fumiori-ai-ime/issues">変換例・不具合を報告</a></div>
       </div>
     </section>
   </main>
@@ -264,7 +266,7 @@
   <footer class="site-footer">
     <div class="shell footer-grid">
       <div><strong>Yamatana AI IME</strong><p>Mozc-based local AI Japanese IME for Windows.</p></div>
-      <div class="footer-links"><a href="https://github.com/YAMA-TANA/yamatana-ai-ime">GitHub</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/releases">Releases</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/LICENSE">License</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/PRIVACY.md">Privacy</a></div>
+      <div class="footer-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime">GitHub</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/releases">Releases</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/LICENSE">License</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/PRIVACY.md">Privacy</a></div>
       <p class="footer-note">Yamatana独自部分はApache License 2.0。Mozc、Ruri、その他の同梱ライブラリにはそれぞれの上流ライセンスが適用されます。</p>
     </div>
   </footer>

@@ -117,7 +117,7 @@ AIが迷っているときは、無理に候補を変えません。新しい候
 
 YAMATANA AI IMEのソースコード、Mozcとの連携部分、AIによる候補選び、検証用のデータとスクリプトはGitHubで公開しています。
 
-👉 [YAMA-TANA/yamatana-ai-ime — GitHub](https://github.com/YAMA-TANA/yamatana-ai-ime)
+👉 [YAMA-TANA/yamatana-ai-ime — GitHub](https://github.com/YAMA-TANA/fumiori-ai-ime)
 
 主な検証ファイルは次の通りです。
 

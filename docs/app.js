@@ -1,6 +1,6 @@
 const promoStyles = document.createElement('link');
 promoStyles.rel = 'stylesheet';
-promoStyles.href = '/yamatana-ai-ime/promo.css?v=20260906-3';
+promoStyles.href = '/fumiori-ai-ime/promo.css?v=20260906-3';
 document.head.appendChild(promoStyles);
 
 const examples = {
@@ -148,7 +148,7 @@ if ('IntersectionObserver' in window) {
 
 // Keep transparency and OSS information reachable from the public site without
 // duplicating the full policy text inside the promotional landing page.
-const policyUrl = '/yamatana-ai-ime/oss.html';
+const policyUrl = '/fumiori-ai-ime/oss.html';
 const navLinks = document.querySelector('.nav-links');
 if (navLinks && !navLinks.querySelector('[data-policy-link]')) {
   const policyLink = document.createElement('a');

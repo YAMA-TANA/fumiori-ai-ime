@@ -5,13 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Yamatana AI IMEのOSS情報、プライバシー、セキュリティ、コード署名、コントリビューション方針。">
   <title>OSS & Policies — Yamatana AI IME</title>
-  <link rel="stylesheet" href="/yamatana-ai-ime/policy.css?v=20260907-1">
+  <link rel="stylesheet" href="/fumiori-ai-ime/policy.css?v=20260907-1">
+  <link rel="canonical" href="https://yama-tana.github.io/fumiori-ai-ime/oss.html">
 </head>
 <body>
   <header class="policy-header">
     <div class="policy-shell policy-nav">
-      <a class="policy-brand" href="/yamatana-ai-ime/"><span class="policy-mark">Y</span><span><strong>Yamatana AI IME</strong><small>OSS & Policies</small></span></a>
-      <div class="language-switch"><a class="active" href="/yamatana-ai-ime/oss.html" lang="ja">日本語</a><a href="/yamatana-ai-ime/oss-en.html" lang="en">English</a></div>
+      <a class="policy-brand" href="/fumiori-ai-ime/"><span class="policy-mark">Y</span><span><strong>Yamatana AI IME</strong><small>OSS & Policies</small></span></a>
+      <div class="language-switch"><a class="active" href="/fumiori-ai-ime/oss.html" lang="ja">日本語</a><a href="/fumiori-ai-ime/oss-en.html" lang="en">English</a></div>
     </div>
   </header>
 
@@ -34,7 +35,7 @@
         <p>Mozc、Ruri、ONNX Runtime、Qtなどの第三者コンポーネントは、YamatanaのApache-2.0へ置き換えられるのではなく、それぞれの上流ライセンスが適用されます。</p>
         <div class="status-grid"><div><strong>Yamatana code</strong><span>Apache License 2.0</span></div><div><strong>Mozc derivative</strong><span>公開fork + 固定commitからビルド</span></div><div><strong>Third-party software</strong><span>各上流ライセンスとNOTICEを保持</span></div></div>
         <div class="callout">配布物の出所を追えるよう、Mozcのfork commit、モデルbundleのSHA-256、主要依存関係をリポジトリ内で固定・記録しています。</div>
-        <div class="source-links"><a href="https://github.com/YAMA-TANA/yamatana-ai-ime">Source repository ↗</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/LICENSE">Apache-2.0 License ↗</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/THIRD_PARTY_LICENSES.md">Third-party licenses ↗</a><a href="https://github.com/YAMA-TANA/mozc">Mozc fork ↗</a></div>
+        <div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime">Source repository ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/LICENSE">Apache-2.0 License ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/THIRD_PARTY_LICENSES.md">Third-party licenses ↗</a><a href="https://github.com/YAMA-TANA/mozc">Mozc fork ↗</a></div>
       </section>
 
       <section class="policy-section" id="privacy">
@@ -42,14 +43,14 @@
         <p>IME入力、変換候補、前後文脈、辞書、文書分野、カスタム指示、AI推論は利用者のWindows PC内で処理します。</p>
         <ul><li>入力内容や前後文脈を外部AI APIへ送信しません。</li><li>テレメトリ、広告SDK、解析SDK、クラッシュ自動送信を実装していません。</li><li>オンラインAIサービスのAPIキーは不要です。</li><li>設定は利用者のローカルユーザー領域に保存されます。</li><li>診断ログを有効にした場合、ローカルに情報が記録されることがあります。</li></ul>
         <p>開発時のビルドスクリプトや、利用者自身がGitHub Releasesからファイルを取得する操作ではネットワークを使用しますが、これはインストール後のIME入力処理とは別です。</p>
-        <div class="source-links"><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/PRIVACY.md">原文 PRIVACY.md ↗</a></div>
+        <div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/PRIVACY.md">原文 PRIVACY.md ↗</a></div>
       </section>
 
       <section class="policy-section" id="security">
         <h2>セキュリティポリシー</h2>
         <p>現在は最新Public Betaをセキュリティ更新対象とします。入力内容、権限昇格、MSIカスタムアクション、Named Pipe、モデル・依存ファイル検証などに関する脆弱性報告を受け付けます。</p>
         <ul><li>機密性のある脆弱性情報は、利用可能な場合GitHub Private Vulnerability Reportingを使用してください。</li><li>公開Issueへ秘密情報や機微な再現データを投稿しないでください。</li><li>Release Assetsは同じReleaseで公開する <code>SHA256SUMS.txt</code> と照合できます。</li><li>証明書、APIキー、秘密鍵はリポジトリへcommitしません。</li></ul>
-        <div class="source-links"><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/security">Security ↗</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/SECURITY.md">原文 SECURITY.md ↗</a></div>
+        <div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/security">Security ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/SECURITY.md">原文 SECURITY.md ↗</a></div>
       </section>
 
       <section class="policy-section" id="signing">
@@ -57,18 +58,18 @@
         <p>現在のPublic Betaは<strong>未署名</strong>です。署名済みであるかのような表示は行いません。SignPath Foundationを含む、検証可能なコード署名経路の導入を準備しています。</p>
         <p>将来の署名対象は、公開ソースからGitHub-hosted Windows runnerで生成され、GitHub Actionsの成果物として追跡できるYamatana/Mozc由来のDLL・EXE・MSIに限定する方針です。任意のローカルバイナリや無関係な第三者バイナリを署名対象にはしません。</p>
         <div class="callout">想定する来歴: public source/tag → GitHub Actions build → unsigned artifact → signing request → signed artifact → SHA-256 → GitHub Release。</div>
-        <div class="source-links"><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/CODE_SIGNING_POLICY.md">Code signing policy ↗</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/docs/SIGNPATH_READINESS.md">SignPath readiness ↗</a></div>
+        <div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/CODE_SIGNING_POLICY.md">Code signing policy ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/docs/SIGNPATH_READINESS.md">SignPath readiness ↗</a></div>
       </section>
 
       <section class="policy-section" id="contributing">
         <h2>コントリビューション</h2>
         <p>Issue、再現手順、ドキュメント、テスト、コード変更を歓迎します。日本語での報告も受け付けます。</p>
         <ul><li>Pull Requestには目的、利用者への影響、試験結果、ライセンス上の追加事項を記載してください。</li><li>新しいネットワーク通信、テレメトリ、常駐処理、権限追加、外部データを導入する場合は明示してください。</li><li>外部コードやデータを追加する場合は出典・revision・ライセンス・配布可否を記録してください。</li><li>署名、Release workflow、インストーラー、依存取得はセキュリティ上重要な変更として扱います。</li></ul>
-        <div class="source-links"><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/blob/main/CONTRIBUTING.md">CONTRIBUTING.md ↗</a><a href="https://github.com/YAMA-TANA/yamatana-ai-ime/issues">Issues ↗</a></div>
+        <div class="source-links"><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/blob/main/CONTRIBUTING.md">CONTRIBUTING.md ↗</a><a href="https://github.com/YAMA-TANA/fumiori-ai-ime/issues">Issues ↗</a></div>
       </section>
     </div>
   </main>
 
-  <footer class="policy-footer"><div class="policy-shell"><div><strong>Yamatana AI IME</strong><br><span>Open source local AI Japanese IME for Windows.</span></div><div><a href="/yamatana-ai-ime/">トップへ戻る</a> · <a href="https://github.com/YAMA-TANA/yamatana-ai-ime">GitHub</a></div></div></footer>
+  <footer class="policy-footer"><div class="policy-shell"><div><strong>Yamatana AI IME</strong><br><span>Open source local AI Japanese IME for Windows.</span></div><div><a href="/fumiori-ai-ime/">トップへ戻る</a> · <a href="https://github.com/YAMA-TANA/fumiori-ai-ime">GitHub</a></div></div></footer>
 </body>
 </html>

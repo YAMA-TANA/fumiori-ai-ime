@@ -392,7 +392,7 @@ def scene_end(image: Image.Image, t: float) -> None:
     if q:
         round_rect(draw, (68, 954, W - 68, 1043), 26, (*GREEN, int(40 * q)), (*GREEN, int(170 * q)), 2)
         centered(draw, 975, "GitHubで公開中", F["mid"], (*WHITE, int(255 * q)))
-        centered(draw, 1082, "github.com/YAMA-TANA/yamatana-ai-ime", F["small_b"], (*MUTED, int(255 * q)))
+        centered(draw, 1082, "github.com/YAMA-TANA/fumiori-ai-ime", F["small_b"], (*MUTED, int(255 * q)))
     draw.text((36, 1218), "YAMATANA AI IME  /  LOCAL-FIRST JAPANESE INPUT", font=F["tiny"], fill=(88, 101, 113))
 
 
