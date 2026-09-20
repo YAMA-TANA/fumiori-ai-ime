@@ -39,6 +39,6 @@
 
 ## 既存インストールの更新
 
-[最新版リリース](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)の `Yamatana-AI-IME-v2.1.1-beta-candidate10.zip` を展開し、`scripts\apply_hotfix.ps1` を管理者PowerShellから実行します。元の `Install-Yamatana-AI-IME.cmd` はMSIと同じ配布フォルダーに置かれている場合にのみ使用してください。
+[最新版リリース](https://github.com/YAMA-TANA/fumiori-ai-ime/releases/tag/v2.1.1-beta)の `Yamatana-AI-IME-v2.1.1-beta-candidate10.zip` を展開し、`scripts\apply_hotfix.ps1` を管理者PowerShellから実行します。旧配布物の `Install-Yamatana-AI-IME.cmd` はMSIの自動検出に失敗する場合があります。新規PCでは上記の新規セットアップZIPを使用してください。リポジトリのインストール補助スクリプトは、MSIと同じフォルダーからも検出できるよう修正しましたが、過去の配布ファイルそのものは変更していません。
 
 MSIX化の技術判断とMicrosoft Store向けの選択肢は、同梱の `MSIX_AND_STORE_NOTES_JA.md` を参照してください。
