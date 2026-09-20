@@ -82,7 +82,7 @@ CPUモードでは、Spaceキーなどの明示変換時にAI候補の並べ替�
 
 公開中のBetaビルドは未署名です。WindowsのSmartScreenや発行元に関する警告が表示される場合があります。署名済みであるかのような表示は行っていません。
 
-試す場合は、[GitHub Releases](https://github.com/YAMA-TANA/yamatana-ai-ime/releases)からMSIと`SHA256SUMS.txt`を取得し、ハッシュを照合してから、同梱の`Install-Yamatana-AI-IME.cmd`を実行してください。
+試す場合は、[GitHub Releases](https://github.com/YAMA-TANA/fumiori-ai-ime/releases)からMSIと`SHA256SUMS.txt`を取得し、ハッシュを照合してから、同梱の`Install-Yamatana-AI-IME.cmd`を実行してください。
 
 ## おわりに
 
@@ -90,4 +90,4 @@ Yamatana AI IMEは、Mozcの候補生成とローカルAIによる再順位付�
 
 ソースコード、検証データ、モデルの情報はGitHubで公開しています。
 
-👉 https://github.com/YAMA-TANA/yamatana-ai-ime
+👉 https://github.com/YAMA-TANA/fumiori-ai-ime

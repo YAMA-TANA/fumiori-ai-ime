@@ -5,7 +5,7 @@ This document is a concise, public description of Yamatana AI IME for code-signi
 ## Project identity
 
 - Project: **Yamatana AI IME (MOZC Ver)**
-- Repository: https://github.com/YAMA-TANA/yamatana-ai-ime
+- Repository: https://github.com/YAMA-TANA/fumiori-ai-ime
 - Maintainer: https://github.com/YAMA-TANA
 - License for Yamatana-authored code: **Apache License 2.0**
 - Platform: **Windows 10/11 x64**
@@ -42,7 +42,7 @@ Public prereleases exist in GitHub Releases, including:
 
 Release assets include the Windows MSI and `SHA256SUMS.txt`. Current beta binaries are explicitly identified as unsigned so users are not led to believe that code signing is already in place.
 
-Releases: https://github.com/YAMA-TANA/yamatana-ai-ime/releases
+Releases: https://github.com/YAMA-TANA/fumiori-ai-ime/releases
 
 ## Source and dependency provenance
 
